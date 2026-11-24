@@ -35,7 +35,7 @@ const chip=L=>`<span class="chip${LINES[L].dark?" y":""}" style="background:${LI
 const chips=n=>[...stationLines[n]].map(chip).join(" ");
 function pickAd(stations){const ads=CFG.ads||[];if(!ads.length)return null;const m=ads.filter(a=>a.stations&&a.stations.some(s=>stations.includes(s)));const pool=m.length?m:ads.filter(a=>!a.stations);return pool.length?pool[Math.floor(Math.random()*pool.length)]:null;}
 const LOGO=`<svg viewBox="-6 -6 112 112" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="square"><rect x="0" y="0" width="100" height="100"/><circle cx="50" cy="50" r="50"/><path d="M0 0 L100 100 M100 0 L0 100 M50 0 L0 100 M50 0 L100 100"/></g></svg>`;
-const SIGN=`<span class="sign">${LOGO}<span><b>Ing. Antonio Sira</b><small>Creador de Metro CCS</small></span></span>`;
+const SIGN=`<span class="sign">${LOGO}<span><b>Ing. Antonio Sira</b><small>Creador de Metro Moro</small></span></span>`;
 const COAUTH=`<div class="coauth">Coautor: <b>Claude</b> (IA de Anthropic) · diseño y programación</div>`;
 function adHTML(a){if(!a)return"";
   if((a.url||"").startsWith("mailto:"))return `<a class="ad brand" target="_blank" rel="noopener" href="${esc(a.url)}"><span class="bl">${LOGO}</span><span class="bt"><span class="ap">Publicidad · Ing. Antonio Sira</span><span class="at">${esc(a.title)}</span><span class="ax">${esc(a.text||"")}</span></span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;
@@ -310,7 +310,7 @@ async function share(r){
   if(!r.walkOnly){for(const g of r.legs){if(g.type==="walk"&&g.first)txt+=`\n• Entra en ${g.to}${g.ex&&g.ex.name?" por la salida "+g.ex.name:""}`;else if(g.type==="ride")txt+=`\n• ${LINES[g.line].name} dirección ${g.dir} hasta ${g.to}`;else if(g.type==="walk"&&g.last)txt+=`\n• Sal${g.ex&&g.ex.name?" por la salida "+g.ex.name:""} y camina ${fmt(g.min)}`;}}
   else txt+=`\n• Mejor ve caminando`;
   txt+=`\n\nVe la ruta en el mapa: ${u.toString()}`;
-  if(navigator.share){try{await navigator.share({title:"Metro CCS",text:txt});return;}catch(e){if(e.name==="AbortError")return;}}
+  if(navigator.share){try{await navigator.share({title:"Metro Moro",text:txt});return;}catch(e){if(e.name==="AbortError")return;}}
   location.href="https://wa.me/?text="+encodeURIComponent(txt);
 }
 
@@ -422,7 +422,7 @@ $("mlist").onclick=e=>{const r=e.target.closest("[data-m]");if(!r)return;const m
   if(m==="dl"){$("menu").classList.remove("on");downloadMap();}
   if(m==="ios"){$("menu").classList.remove("on");$("iosTip").style.display="block";$("welcome").classList.add("on");}
   if(m==="net"){$("menu").classList.remove("on");clearDest();fitAll();}
-  if(m==="ads")location.href=CONTACT+"?subject="+encodeURIComponent("Publicidad en Metro CCS");
+  if(m==="ads")location.href=CONTACT+"?subject="+encodeURIComponent("Publicidad en Metro Moro");
   if(m==="clr"){store.set("home",null);store.set("work",null);store.set("recents",[]);toast("Listo, borrado.");$("menu").classList.remove("on");render(true);}
 };
 
