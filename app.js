@@ -36,6 +36,7 @@ const chips=n=>[...stationLines[n]].map(chip).join(" ");
 function pickAd(stations){const ads=CFG.ads||[];if(!ads.length)return null;const m=ads.filter(a=>a.stations&&a.stations.some(s=>stations.includes(s)));const pool=m.length?m:ads.filter(a=>!a.stations);return pool.length?pool[Math.floor(Math.random()*pool.length)]:null;}
 const LOGO=`<svg viewBox="-6 -6 112 112" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="square"><rect x="0" y="0" width="100" height="100"/><circle cx="50" cy="50" r="50"/><path d="M0 0 L100 100 M100 0 L0 100 M50 0 L0 100 M50 0 L100 100"/></g></svg>`;
 const SIGN=`<span class="sign">${LOGO}<span><b>Ing. Antonio Sira</b><small>Creador de Metro CCS</small></span></span>`;
+const COAUTH=`<div class="coauth">Coautor: <b>Claude</b> (IA de Anthropic) · diseño y programación</div>`;
 function adHTML(a){if(!a)return"";
   if((a.url||"").startsWith("mailto:"))return `<a class="ad brand" target="_blank" rel="noopener" href="${esc(a.url)}"><span class="bl">${LOGO}</span><span class="bt"><span class="ap">Publicidad · Ing. Antonio Sira</span><span class="at">${esc(a.title)}</span><span class="ax">${esc(a.text||"")}</span></span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;
   return `<a class="ad" target="_blank" rel="noopener sponsored" href="${esc(a.url||"#")}"><span class="ae">${esc(a.emoji||"📣")}</span><span><span class="ap">Patrocinado</span><div class="at">${esc(a.title)}</div><div class="ax">${esc(a.text||"")}</div></span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;}
@@ -101,7 +102,7 @@ async function walkRoute(a,b){
 }
 
 // ================= MAPA =================
-const DARK=matchMedia("(prefers-color-scheme: dark)").matches;
+const DARK=false; // mapa siempre claro
 let map=null,mapReady=false;
 const LL=p=>[p[1],p[0]];
 const fc=f=>({type:"FeatureCollection",features:f});
@@ -110,7 +111,7 @@ const ptF=(p,props)=>({type:"Feature",properties:props||{},geometry:{type:"Point
 function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
-  map=new maplibregl.Map({container:"map",style:`https://tiles.openfreemap.org/styles/${DARK?"dark":"liberty"}`,center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
+  map=new maplibregl.Map({container:"map",style:"https://tiles.openfreemap.org/styles/positron",center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
   map.touchZoomRotate.disableRotation();
   map.on("load",()=>{
     const net=[];for(const L in LINES)for(const sh of(MD.shapes[L]||[]))net.push(lineF(sh,{c:LINES[L].color}));
@@ -399,7 +400,7 @@ function openMenu(){
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m. (según OpenStreetMap)</div></div></div>`;
   if(CONTACT)h+=`<div class="row" data-m="ads"><span class="em">📣</span><div class="tx"><div class="t1">Anuncia tu negocio aquí</div><div class="t2">Escríbenos por correo</div></div></div>`;
   h+=`<div class="row" data-m="clr"><span class="em">🧹</span><div class="tx"><div class="t1">Borrar Casa, Trabajo y recientes</div></div></div>`;
-  h+=`<div class="credit">${SIGN}</div>`;
+  h+=`<div class="credit">${SIGN}${COAUTH}</div>`;
   h+=`<p class="note">Mapa: OpenFreeMap · © OpenMapTiles · © colaboradores de OpenStreetMap. Estaciones y salidas de OpenStreetMap; si ves un error, avísanos.</p>`;
   $("mlist").innerHTML=h;$("menu").classList.add("on");
 }
