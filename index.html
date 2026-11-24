@@ -79,6 +79,14 @@ header small{display:block;color:var(--mut);font-size:11px;font-weight:500}
 .leaflet-control-attribution{background:#fffc;font-size:10px;padding:0 5px}.leaflet-control-attribution a{color:#1a73e8}
 .leaflet-tooltip{position:absolute;padding:2px 6px;background:#fff;border-radius:6px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3);font-size:11px;font-weight:600;color:#1b1b1f}
 .leaflet-tooltip-top:before,.leaflet-tooltip-right:before{display:none}
+.mdot{border-radius:50%;box-sizing:border-box;cursor:pointer;position:relative;box-shadow:0 1px 3px #0004}
+.mlbl{position:absolute;left:100%;top:50%;transform:translate(6px,-50%);background:#fff;color:#1b1b1f;padding:1px 7px;border-radius:7px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px #0003;pointer-events:none}
+.mlbl.opt{display:none}#map.z14 .mlbl.opt{display:block}
+.mdot.exit{display:none;border-radius:5px;place-items:center}#map.z15 .mdot.exit{display:grid}
+.mdot.exit i{color:#fff;font-style:normal;font-size:10px;font-weight:800;line-height:1}
+.mlbl.ex{display:none!important;font-weight:600;font-size:11px}#map.z16 .mlbl.ex{display:block!important}
+.exl{font-size:12px;color:var(--mut);font-weight:500;margin-top:4px;line-height:1.35}
+.maplibregl-ctrl-group{border-radius:10px!important}.maplibregl-ctrl-group button{width:36px!important;height:36px!important}
 #pv{background:#fff4d6;color:#5a4300;font-size:12px;padding:7px 14px;border-bottom:1px solid #f0dfa8}
 #picker{position:fixed;inset:0;background:var(--card);display:none;flex-direction:column;z-index:2000;padding-top:env(safe-area-inset-top)}
 #picker .top{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--line);align-items:center}
@@ -123,6 +131,7 @@ header small{display:block;color:var(--mut);font-size:11px;font-weight:500}
 </div>
 
 <script src="config.js"></script>
+<script src="data.js"></script>
 <script>
 // ================= DATOS =================
 // Coordenadas iniciales (aproximadas). Al abrir con internet, la app las corrige con OpenStreetMap.
@@ -182,7 +191,16 @@ const isTransfer=n=>stationLines[n].size>1||["Capitolio","El Silencio","Zona Ren
 // ============ CORRECCIÓN DE COORDENADAS (OpenStreetMap) ============
 const COORD_KEY="metroccs-coords-v1";
 function applyCoords(obj){let n=0;for(const k in obj){if(ST[k]&&hav(ST[k],obj[k])<4){ST[k]=obj[k];n++;}}return n;}
-try{const c=JSON.parse(localStorage.getItem(COORD_KEY)||"null");if(c)applyCoords(c);}catch(e){}
+const MD=window.METRO_DATA||null;
+if(MD){for(const k in MD.st)if(ST[k])ST[k]=MD.st[k];}
+try{localStorage.removeItem(COORD_KEY);}catch(e){}
+// Salidas de cada estación (OpenStreetMap). Si una estación no tiene, se usa su centro.
+const EXITS={};for(const n in ST)EXITS[n]=(MD&&MD.exits[n]&&MD.exits[n].length?MD.exits[n]:[[ST[n][0],ST[n][1],""]]).map(([la,lo,nm])=>({ll:[la,lo],name:nm}));
+function bestExit(p,n){let b=null,bw=Infinity;for(const e of EXITS[n]){const w=walkMin(p,e.ll);if(w<bw){bw=w;b=e;}}return{w:bw,ex:b};}
+const exName=e=>e&&e.name?`salida <b>${esc(e.name)}</b>`:"la salida más cercana";
+function nearIdx(sh,p){let bi=0,bd=Infinity;for(let i=0;i<sh.length;i++){const d=hav(sh[i],p);if(d<bd){bd=d;bi=i;}}return{i:bi,d:bd};}
+function shapeBetween(L,a,b){if(MD&&MD.shapes[L])for(const sh of MD.shapes[L]){const A=nearIdx(sh,ST[a]),B=nearIdx(sh,ST[b]);if(A.d<0.35&&B.d<0.35&&A.i!==B.i)return A.i<B.i?sh.slice(A.i,B.i+1):sh.slice(B.i,A.i+1).reverse();}return[ST[a],ST[b]];}
+const pathShape=(L,stops)=>{let out=[];for(let i=0;i<stops.length-1;i++){const s=shapeBetween(L,stops[i],stops[i+1]);out=out.length?out.concat(s.slice(1)):s;}return out;};
 async function refreshCoordsFromOSM(){
   const q=`[out:json][timeout:25];(node["railway"="station"](10.30,-67.10,10.56,-66.75);node["public_transport"="station"]["subway"="yes"](10.30,-67.10,10.56,-66.75););out tags center;`;
   const res=await fetch("https://overpass-api.de/api/interpreter?data="+encodeURIComponent(q));
@@ -219,16 +237,16 @@ function buildGraph(){
 }
 function route(from,to){
   const fp=[from.lat,from.lon],tp=[to.lat,to.lon],direct=walkMin(fp,tp),names=Object.keys(ST);
-  const pick=p=>names.map(n=>({n,w:walkMin(p,ST[n])})).sort((a,b)=>a.w-b.w).filter((x,i)=>i<3||x.w<=30);
+  const pick=p=>names.map(n=>({n,...bestExit(p,n)})).sort((a,b)=>a.w-b.w).filter((x,i)=>i<3||x.w<=30);
   const srcs=pick(fp),dsts=pick(tp),dist={},prev={},done=new Set();
-  for(const s of srcs)for(const L of stationLines[s.n]){const id=nid(L,s.n),d=s.w+3;if(dist[id]==null||d<dist[id]){dist[id]=d;prev[id]={start:true,walk:s.w};}}
+  for(const s of srcs)for(const L of stationLines[s.n]){const id=nid(L,s.n),d=s.w+3;if(dist[id]==null||d<dist[id]){dist[id]=d;prev[id]={start:true,walk:s.w,ex:s.ex};}}
   for(;;){let u=null,b=Infinity;for(const k in dist)if(!done.has(k)&&dist[k]<b){b=dist[k];u=k;}if(!u)break;done.add(u);
     for(const e of adj[u]||[]){const d=dist[u]+e.w;if(dist[e.to]==null||d<dist[e.to]-1e-9){dist[e.to]=d;prev[e.to]={from:u,e};}}}
   let end=null,bt=Infinity;
-  for(const d of dsts)for(const L of stationLines[d.n]){const id=nid(L,d.n);if(dist[id]==null)continue;const t=dist[id]+d.w;if(t<bt){bt=t;end={id,walk:d.w};}}
+  for(const d of dsts)for(const L of stationLines[d.n]){const id=nid(L,d.n);if(dist[id]==null)continue;const t=dist[id]+d.w;if(t<bt){bt=t;end={id,walk:d.w,ex:d.ex};}}
   if(!end||direct<=bt)return{walkOnly:true,total:direct};
   const seq=[];let c=end.id;while(!prev[c].start){seq.unshift({to:c,...prev[c]});c=prev[c].from;}
-  const legs=[{type:"walk",first:true,to:nodes[c].st,min:prev[c].walk}];let cur=null;
+  const legs=[{type:"walk",first:true,to:nodes[c].st,min:prev[c].walk,ex:prev[c].ex}];let cur=null;
   for(const s of seq){
     if(s.e.type==="ride"){
       if(cur&&cur.line===s.e.line&&cur.sense===s.e.sense){cur.stops++;cur.min+=s.e.w;cur.to=nodes[s.to].st;cur.dir=s.e.dir;cur.path.push(nodes[s.to].st);}
@@ -236,7 +254,7 @@ function route(from,to){
     }else{if(cur){legs.push(cur);cur=null;}legs.push({type:"xfer",from:nodes[s.from].st,to:nodes[s.to].st,toLine:nodes[s.to].line,min:s.e.w});}
   }
   if(cur)legs.push(cur);
-  legs.push({type:"walk",last:true,from:nodes[end.id].st,min:end.walk});
+  legs.push({type:"walk",last:true,from:nodes[end.id].st,min:end.walk,ex:end.ex});
   return{walkOnly:false,total:bt,legs,direct};
 }
 
@@ -286,6 +304,41 @@ function googleAdapter(){
     onClick(cb){map.addListener("click",e=>cb([e.latLng.lat(),e.latLng.lng()]));}
   };
 }
+async function loadMapLibre(){
+  const css=document.createElement("link");css.rel="stylesheet";css.href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css";document.head.appendChild(css);
+  for(const u of["https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js","https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"]){try{await loadScript(u);if(window.maplibregl)return;}catch(e){}}
+  throw new Error("maplibre");
+}
+function mlAdapter(){return new Promise((ok,ko)=>{
+  const map=new maplibregl.Map({container:"map",style:"https://tiles.openfreemap.org/styles/liberty",center:[-66.88,10.49],zoom:12,maxZoom:19,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false});
+  map.touchZoomRotate.disableRotation();
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");
+  let seq=0;const mapEl=$("map");
+  const setZ=()=>{const z=map.getZoom();mapEl.classList.toggle("z14",z>=13.8);mapEl.classList.toggle("z15",z>=15);mapEl.classList.toggle("z16",z>=16.3);};
+  map.on("zoom",setZ);
+  const A={kind:"ml",
+    line(pts,o){const id="l"+(++seq);
+      map.addSource(id,{type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:pts.map(p=>[p[1],p[0]])}}});
+      const paint={"line-color":o.color,"line-width":["interpolate",["linear"],["zoom"],11,(o.weight||5)*0.6,15,(o.weight||5)*1.3],"line-opacity":o.opacity??1};
+      if(o.dashed)paint["line-dasharray"]=[0.3,1.6];
+      if(o.casing){map.addLayer({id:id+"c",type:"line",source:id,layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#fff","line-width":["interpolate",["linear"],["zoom"],11,(o.weight||5)*0.6+3,15,(o.weight||5)*1.3+4],"line-opacity":o.opacity??1}});}
+      map.addLayer({id,type:"line",source:id,layout:{"line-cap":"round","line-join":"round"},paint});
+      return{remove(){for(const k of[id,id+"c"])if(map.getLayer(k))map.removeLayer(k);if(map.getSource(id))map.removeSource(id);},
+        opacity(v){for(const k of[id,id+"c"])if(map.getLayer(k))map.setPaintProperty(k,"line-opacity",v);}};},
+    dot(ll,o,onClick){const el=document.createElement("div");const r=o.r||6;
+      el.className="mdot"+(o.cls?" "+o.cls:"");el.style.cssText=`width:${2*r}px;height:${2*r}px;background:${o.fill};border:${o.sw??2}px solid ${o.stroke||"#fff"};z-index:${o.z||10}`;
+      if(o.html)el.innerHTML=o.html;
+      if(o.title){el.setAttribute("aria-label",o.title);const s=document.createElement("span");s.className="mlbl"+(o.label?"":" opt")+(o.lcls?" "+o.lcls:"");s.textContent=o.title;el.appendChild(s);}
+      if(onClick)el.addEventListener("click",e=>{e.stopPropagation();onClick();});
+      const m=new maplibregl.Marker({element:el}).setLngLat([ll[1],ll[0]]).addTo(map);
+      return{remove:()=>m.remove(),move:x=>m.setLngLat([x[1],x[0]])};},
+    fit(pts){const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend([p[1],p[0]]));map.fitBounds(b,{padding:{top:50,bottom:50,left:40,right:40},maxZoom:16.5,duration:450});},
+    center(ll,z){map.easeTo({center:[ll[1],ll[0]],zoom:z||map.getZoom(),duration:450});},
+    onClick(cb){map.on("click",e=>cb([e.lngLat.lat,e.lngLat.lng]));}
+  };
+  map.on("load",()=>{setZ();ok(A);});map.on("error",e=>{if(!map.loaded())ko(e);});
+  setTimeout(()=>ko(new Error("timeout")),15000);
+});}
 async function loadLeaflet(){
   
   const srcs=["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js","https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"];
@@ -312,9 +365,12 @@ function leafletAdapter(){
 let baseLines=[],stationDots=[],routeLayers=[],markLayers=[],meDot=null,meHalo=null;
 function drawNetwork(){
   baseLines.forEach(l=>l.remove());stationDots.forEach(d=>d.remove());baseLines=[];stationDots=[];
-  for(const L in LINES)for(const p of LINES[L].paths)baseLines.push(MAP.line(p.s.map(s=>ST[s]),{color:LINES[L].color,weight:6,z:2}));
+  for(const L in LINES){const shapes=MD&&MD.shapes[L]?MD.shapes[L]:LINES[L].paths.map(p=>p.s.map(s=>ST[s]));
+    for(const sh of shapes)baseLines.push(MAP.line(sh,{color:LINES[L].color,weight:5,casing:true,z:2}));}
+  if(MAP.kind==="ml")for(const n in ST)for(const e of EXITS[n]){if(!e.name&&EXITS[n].length===1&&e.ll[0]===ST[n][0])continue;
+    stationDots.push(MAP.dot(e.ll,{fill:"#1b1b1f",stroke:"#fff",sw:2,r:7,cls:"exit",html:"<i>↑</i>",title:e.name||"Salida",lcls:"ex",z:15},()=>openStation(n)));}
   for(const n in ST){const x=isTransfer(n),L0=[...stationLines[n]][0];
-    stationDots.push(MAP.dot(ST[n],{fill:x?"#fff":LINES[L0].color,stroke:x?"#1b1b1f":"#fff",sw:x?3:2,r:x?7:6,title:n,label:x,z:20},()=>openStation(n)));}
+    stationDots.push(MAP.dot(ST[n],{fill:x?"#fff":LINES[L0].color,stroke:x?"#1b1b1f":"#fff",sw:x?3:2,r:x?8:6,title:n,label:x,z:20},()=>openStation(n)));}
 }
 function clearRoute(){routeLayers.forEach(l=>l.remove());routeLayers=[];markLayers.forEach(l=>l.remove());markLayers=[];baseLines.forEach(l=>l.opacity(1));}
 function drawMe(){if(!ME||!MAP)return;
@@ -330,7 +386,9 @@ function startPick(which){pickMode=which;$("btxt").textContent=which==="from"?"T
 function endPick(){pickMode=null;$("banner").style.display="none";}
 $("bcancel").onclick=endPick;
 let cardStation=null;
-function openStation(n){if(pickMode){setPoint(pickMode,stPoint(n));endPick();return;}cardStation=n;$("stname").innerHTML=esc(n)+" "+chips(n);$("stad").innerHTML=adHTML(pickAd([n]));$("stcard").style.display="block";}
+function openStation(n){if(pickMode){setPoint(pickMode,stPoint(n));endPick();return;}cardStation=n;$("stname").innerHTML=esc(n)+" "+chips(n)+exitsHTML(n);$("stad").innerHTML=adHTML(pickAd([n]));$("stcard").style.display="block";}
+function exitsHTML(n){const ex=EXITS[n].filter(e=>e.name);const k=EXITS[n].length;
+  if(!(MD&&MD.exits[n]))return"";return `<div class="exl">${k} ${k===1?"salida":"salidas"}${ex.length?": "+[...new Set(ex.map(e=>e.name))].map(esc).join(" · "):""}</div>`;}
 const stPoint=n=>({lat:ST[n][0],lon:ST[n][1],name:"Estación "+n,station:n});
 $("stfrom").onclick=()=>setPoint("from",stPoint(cardStation));
 $("stto").onclick=()=>setPoint("to",stPoint(cardStation));
@@ -404,13 +462,13 @@ function stepsHTML(r){
   let li="";if(r.ad===undefined)r.ad=pickAd(r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]));
   r.legs.forEach((g,i)=>{
     if(g.type==="walk"&&g.first){
-      li+=`<li><span class="ic walk">🚶</span><div>Camina hasta la estación <b>${esc(g.to)}</b> ${chips(g.to)}<span class="t" id="w0">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""} · luego ~3 min esperando el tren</span><a class="gm" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],ST[g.to])}">Ir caminando con Google Maps ↗</a></div></li>`;
+      li+=`<li><span class="ic walk">🚶</span><div>Camina a la estación <b>${esc(g.to)}</b> ${chips(g.to)} y entra por ${exName(g.ex)}<span class="t" id="w0">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""} · luego ~3 min esperando el tren</span><a class="gm" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],g.ex.ll)}">Ir caminando con Google Maps ↗</a></div></li>`;
     }else if(g.type==="ride"){const L=LINES[g.line];
       li+=`<li><span class="ic" style="background:${L.color};color:${L.dark?"#3a2b00":"#fff"}">${L.short}</span><div>Toma la <b>${L.name}</b> dirección <b>${esc(g.dir)}</b> y bájate en <b>${esc(g.to)}</b><span class="t">${g.stops} ${g.stops===1?"estación":"estaciones"} · ${fmt(g.min)}</span></div></li>`;
     }else if(g.type==="xfer"){const L=LINES[g.toLine];
       li+=`<li><span class="ic xfer">⇄</span><div>Transbordo ${g.from===g.to?"en <b>"+esc(g.from)+"</b>":"de <b>"+esc(g.from)+"</b> a <b>"+esc(g.to)+"</b> por el pasillo"} hacia la ${L.name}<span class="t">~${fmt(g.min)}</span></div></li>`;
     }else if(g.type==="walk"&&g.last){
-      li+=`<li><span class="ic walk">🏁</span><div>Sal de <b>${esc(g.from)}</b> y camina a <b>${esc(TO.name)}</b><span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""}</span><a class="gm" target="_blank" rel="noopener" href="${gmWalk(ST[g.from],[TO.lat,TO.lon])}">Ir caminando con Google Maps ↗</a></div></li>`;
+      li+=`<li><span class="ic walk">🏁</span><div>Sal de <b>${esc(g.from)}</b> por ${exName(g.ex)} y camina a <b>${esc(TO.name)}</b><span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""}</span><a class="gm" target="_blank" rel="noopener" href="${gmWalk(g.ex.ll,[TO.lat,TO.lon])}">Ir caminando con Google Maps ↗</a></div></li>`;
     }
   });
   return `<div class="sum"><b>${fmt(r.total)}</b><span>en total · a pie serían ${fmt(r.direct)}</span></div><ul class="steps">${li}</ul>${adHTML(r.ad)}`;
@@ -424,9 +482,9 @@ function render(keepView){
   if(FROM&&!FROM.live)markLayers.push(MAP.dot([FROM.lat,FROM.lon],{fill:"#1a73e8",stroke:"#fff",sw:3,r:9,title:FROM.name,z:40}));
   if(TO)markLayers.push(MAP.dot([TO.lat,TO.lon],{fill:"#d7261e",stroke:"#fff",sw:3,r:10,title:TO.name,z:40}));
   if(!FROM||!TO){
-    if(FROM){const n=nearest(FROM);const a=[FROM.lat,FROM.lon];
-      $("result").innerHTML=`<p class="hint">Estación más cercana: <b>${esc(n)}</b> ${chips(n)} · ~${fmt(walkMin(a,ST[n]))} a pie.<br><a class="gm" target="_blank" rel="noopener" href="${gmWalk(a,ST[n])}">Ir caminando con Google Maps ↗</a></p><p class="hint">Ahora toca “Hasta” para elegir tu destino.</p>${adHTML(pickAd([n]))}`;
-      walkRoute(a,ST[n]).then(w=>{if(w&&tok===renderToken)routeLayers.push(MAP.line(w.path,{color:"#1a73e8",weight:5,dashed:true,z:5}));});
+    if(FROM){const n=nearest(FROM);const a=[FROM.lat,FROM.lon];const be=bestExit(a,n);
+      $("result").innerHTML=`<p class="hint">Estación más cercana: <b>${esc(n)}</b> ${chips(n)} · ~${fmt(be.w)} a pie hasta ${exName(be.ex)}.<br><a class="gm" target="_blank" rel="noopener" href="${gmWalk(a,be.ex.ll)}">Ir caminando con Google Maps ↗</a></p><p class="hint">Ahora toca “Hasta” para elegir tu destino.</p>${adHTML(pickAd([n]))}`;
+      walkRoute(a,be.ex.ll).then(w=>{if(w&&tok===renderToken)routeLayers.push(MAP.line(w.path,{color:"#1a73e8",weight:5,dashed:true,z:5}));});
     }
     return;
   }
@@ -437,15 +495,15 @@ function render(keepView){
     if(!keepView)MAP.fit([a,b]);return;
   }
   baseLines.forEach(l=>l.opacity(.25));
-  const pts=[a,b];
-  for(const g of r.legs)if(g.type==="ride"){routeLayers.push(MAP.line(g.path.map(s=>ST[s]),{color:LINES[g.line].color,weight:10,z:6}));g.path.forEach(s=>pts.push(ST[s]));}
+  const pts=[a,b,first.ex.ll,last.ex.ll];
+  for(const g of r.legs)if(g.type==="ride"){routeLayers.push(MAP.line(pathShape(g.line,g.path),{color:LINES[g.line].color,weight:8,casing:true,z:6}));g.path.forEach(s=>pts.push(ST[s]));}
   const first=r.legs[0],last=r.legs[r.legs.length-1];
-  const tmp=[MAP.line([a,ST[first.to]],{color:"#1a73e8",weight:4,dashed:true,z:5}),MAP.line([ST[last.from],b],{color:"#1a73e8",weight:4,dashed:true,z:5})];
+  const tmp=[MAP.line([a,first.ex.ll],{color:"#1a73e8",weight:4,dashed:true,z:5}),MAP.line([last.ex.ll,b],{color:"#1a73e8",weight:4,dashed:true,z:5})];
   routeLayers.push(...tmp);
   $("result").innerHTML=stepsHTML(r);
   if(!keepView)MAP.fit(pts);
   // caminatas reales (Google Routes u OpenStreetMap)
-  Promise.all([walkRoute(a,ST[first.to]),walkRoute(ST[last.from],b)]).then(([w1,w2])=>{
+  Promise.all([walkRoute(a,first.ex.ll),walkRoute(last.ex.ll,b)]).then(([w1,w2])=>{
     if(tok!==renderToken)return;
     if(w1){tmp[0].remove();routeLayers.push(MAP.line(w1.path,{color:"#1a73e8",weight:5,dashed:true,z:5}));r.total+=w1.min-first.min;first.min=w1.min;first.m=w1.m;}
     if(w2){tmp[1].remove();routeLayers.push(MAP.line(w2.path,{color:"#1a73e8",weight:5,dashed:true,z:5}));r.total+=w2.min-last.min;last.min=w2.min;last.m=w2.m;}
@@ -460,13 +518,13 @@ function render(keepView){
     if(GKEY){await loadGoogle();MAP=googleAdapter();$("sub").textContent="Mapa de Google · estaciones y rutas";}
     else throw 0;
   }catch(e){
-    try{await loadLeaflet();MAP=leafletAdapter();}catch(e2){$("result").innerHTML=`<p class="hint">No hay conexión para cargar el mapa. Abre la app con datos al menos una vez.</p>`;return;}
+    try{await loadMapLibre();MAP=await mlAdapter();}
+    catch(e1){$("map").innerHTML="";try{await loadLeaflet();MAP=leafletAdapter();}catch(e2){$("result").innerHTML=`<p class="hint">No hay conexión para cargar el mapa. Abre la app con datos al menos una vez.</p>`;return;}}
   }
   MAP.onClick(ll=>{if(pickMode){setPoint(pickMode,{lat:ll[0],lon:ll[1],name:"Punto en el mapa"});endPick();}else $("stcard").style.display="none";});
   drawNetwork();
   MAP.fit(Object.keys(ST).filter(n=>!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));
   render();startWatch();
-  refreshCoordsFromOSM().then(n=>{if(n){buildGraph();drawNetwork();if(ME){meDot&&meDot.remove();meHalo&&meHalo.remove();meDot=meHalo=null;drawMe();}render(true);}}).catch(()=>{});
 })();
 
 </script>
