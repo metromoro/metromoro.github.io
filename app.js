@@ -94,15 +94,23 @@ const nearest=p=>{let b=null,bw=Infinity;for(const n in ST){const e=bestExit(p,n
 
 // tiempos reales a pie (por calles) hasta TODAS las salidas de las estaciones candidatas, en una sola consulta por extremo
 const tableCache={};
+// caminatas reales: Valhalla (rápido) y, si falla, OSRM
+async function valhalla(path,body){for(let i=0;i<2;i++){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),8000);
+  const r=await fetch(`https://valhalla1.openstreetmap.de/${path}?json=${encodeURIComponent(JSON.stringify(body))}`,{signal:c.signal});clearTimeout(t);if(r.ok)return await r.json();}catch(e){}await new Promise(z=>setTimeout(z,500));}return null;}
+function decode6(str){let i=0,lat=0,lng=0,out=[];while(i<str.length){for(const k of[0,1]){let b,sh=0,r=0;do{b=str.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5;}while(b>=32);const d=(r&1)?~(r>>1):(r>>1);if(k===0)lat+=d;else lng+=d;}out.push([lat/1e6,lng/1e6]);}return out;}
 // el servidor de rutas a pie rechaza consultas simultáneas: van en fila, con reintento
 let osrmQ=Promise.resolve();
 function osrm(url){const run=async()=>{for(let i=0;i<3;i++){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),8000);const r=await fetch(url,{signal:c.signal});clearTimeout(t);
   if(r.ok){const j=await r.json();if(j.code==="Ok")return j;}}catch(e){}await new Promise(z=>setTimeout(z,700*(i+1)));}return null;};
   const p=osrmQ.then(run);osrmQ=p.catch(()=>{});return p;}
 async function walkTable(p,toStations){ // toStations: p -> salidas ; si no, salidas -> p
-  const cand=Object.keys(ST).map(n=>({n,...bestExit(p,n)})).sort((x,y)=>x.w-y.w).filter((x,i)=>i<3||(i<7&&x.w<=40)).map(x=>x.n);
+  const cand=Object.keys(ST).map(n=>({n,...bestExit(p,n)})).sort((x,y)=>x.w-y.w).filter((x,i)=>i<4||(i<9&&x.w<=45)).map(x=>x.n);
   const ex=[];cand.forEach(n=>EXITS[n].forEach(e=>ex.push({n,e})));
   const key=(toStations?"o":"d")+p.join()+cand.join();if(tableCache[key])return tableCache[key];
+  const L=x=>({lat:x[0],lon:x[1]});
+  const vj=await valhalla("sources_to_targets",toStations?{sources:[L(p)],targets:ex.map(x=>L(x.e.ll)),costing:"pedestrian"}:{sources:ex.map(x=>L(x.e.ll)),targets:[L(p)],costing:"pedestrian"});
+  if(vj&&vj.sources_to_targets){const out={};ex.forEach((x,i)=>{const c=toStations?vj.sources_to_targets[0][i]:vj.sources_to_targets[i][0];if(!c||c.time==null)return;const m=c.time/60;if(!out[x.n]||m<out[x.n].w)out[x.n]={w:m,ex:x.e};});
+    if(Object.keys(out).length)return tableCache[key]=out;}
   const pts=toStations?[p,...ex.map(x=>x.e.ll)]:[...ex.map(x=>x.e.ll),p];
   const q=toStations?"sources=0":"destinations="+(pts.length-1);
   try{const j=await osrm(`https://routing.openstreetmap.de/routed-foot/table/v1/foot/${pts.map(x=>x[1]+","+x[0]).join(";")}?${q}`);
@@ -115,6 +123,8 @@ async function walkTable(p,toStations){ // toStations: p -> salidas ; si no, sal
 const walkCache={};
 async function walkRoute(a,b){
   const key=a.join()+";"+b.join();if(walkCache[key])return walkCache[key];
+  const v=await valhalla("route",{locations:[{lat:a[0],lon:a[1]},{lat:b[0],lon:b[1]}],costing:"pedestrian",units:"kilometers"});
+  if(v&&v.trip&&v.trip.legs&&v.trip.legs[0])return walkCache[key]={path:decode6(v.trip.legs[0].shape),min:v.trip.summary.time/60,m:v.trip.summary.length*1000};
   try{const j=await osrm(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`);
     const rt=j&&j.routes&&j.routes[0];
     if(rt)return walkCache[key]={path:rt.geometry.coordinates.map(([x,y])=>[y,x]),min:rt.duration/60,m:rt.distance};
@@ -256,8 +266,10 @@ function render(keepView){
 function renderIdle(tok){
   VIEW="idle";let h="";
   if(FROM){const a=[FROM.lat,FROM.lon],nb=nearest(a);
-    h+=`<div class="row"><span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(nb.n)} ${chips(nb.n)}</div><div class="t2">${fmt(nb.w)} a pie hasta ${exName(nb.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,nb.ex.ll)}">Ir ↗</a></div>`;
-    walkRoute(a,nb.ex.ll).then(w=>{if(w&&tok===renderTok&&mapReady)setData("walk",fc([lineF(w.path)]));});
+    h+=`<div class="row" id="nearRow"><span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(nb.n)} ${chips(nb.n)}</div><div class="t2">${fmt(nb.w)} a pie hasta ${exName(nb.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,nb.ex.ll)}">Ir ↗</a></div>`;
+    walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};
+      if(best){const row=$("nearRow");if(row)row.innerHTML=`<span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(best.n)} ${chips(best.n)}</div><div class="t2">${fmt(best.w)} a pie hasta ${exName(best.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,best.ex.ll)}">Ir ↗</a>`;}
+      walkRoute(a,(best||nb).ex.ll).then(w=>{if(w&&tok===renderTok&&mapReady)setData("walk",fc([lineF(w.path)]));});});
   }else h+=`<div class="row"><span class="em">📍</span><div class="tx"><div class="t1">Activa tu ubicación</div><div class="t2">Así te digo cuál es tu estación más cercana.</div></div><button class="btn sm" id="bGps">Activar</button></div>`;
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m.</div></div></div>`;
   const hm=saved("home"),wk=saved("work");
