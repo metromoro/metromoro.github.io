@@ -26,6 +26,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#fff;--ink:#16171b;--mut:#666a73;--line:#e7e7ea;--soft:#f4f4f6;--acc:#d7261e;--me:#1a73e8;--sh:0 6px 24px rgba(0,0,0,.18);--top:env(safe-area-inset-top);--bot:env(safe-area-inset-bottom)}
+html.dark{color-scheme:dark;--bg:#17181c;--ink:#eef0f3;--mut:#a2a7b0;--line:#2c2f36;--soft:#23262c;--sh:0 6px 24px rgba(0,0,0,.55)}
+html.dark .maplibregl-ctrl-attrib{background:rgba(23,24,28,.8);color:#aaa}html.dark .maplibregl-ctrl-attrib a{color:#ccc}
+html.dark .ad:not(.brand){filter:brightness(.92)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -197,9 +200,9 @@ h2{font-size:20px;margin:2px 0 10px}
 
 <div id="toast"></div>
 
-<script src="config.js?v=14"></script>
-<script src="data.js?v=14"></script>
+<script src="config.js?v=15"></script>
+<script src="data.js?v=15"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
