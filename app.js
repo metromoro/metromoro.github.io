@@ -116,7 +116,8 @@ function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
   map=new maplibregl.Map({container:"map",style:"https://tiles.openfreemap.org/styles/"+STYLES[mapStyle][1],center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
   map.touchZoomRotate.disableRotation();
-  map.on("style.load",()=>{overlay();if(mapReady)render(true);});
+  map.on("styledata",()=>{if(!map.getSource("net")&&map.isStyleLoaded()){overlay();if(mapReady)render(true);}});
+  map.on("style.load",()=>{if(!map.getSource("net")){overlay();if(mapReady)render(true);}});
   map.on("load",()=>{
     for(const id of["st","ex"]){map.on("click",id,e=>{const f=e.features[0];if(f)openStation(f.properties.n);});map.on("mouseenter",id,()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave",id,()=>map.getCanvas().style.cursor="");}
     map.on("click",e=>{if(map.getLayer("st")&&map.queryRenderedFeatures(e.point,{layers:["st","ex"]}).length)return;if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,{lat:e.lngLat.lat,lon:e.lngLat.lng,name:"Punto en el mapa"});}});
@@ -148,7 +149,7 @@ function overlay(){
     map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":DARK?"#fff":"#16171b","text-halo-color":DARK?"#000":"#fff","text-halo-width":2}});
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
-function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";store.set("mapStyle",k);map.setStyle("https://tiles.openfreemap.org/styles/"+STYLES[k][1]);}
+function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";store.set("mapStyle",k);map.setStyle("https://tiles.openfreemap.org/styles/"+STYLES[k][1],{diff:false});}
 function padding(){return{top:($("top").offsetHeight||120)+20,bottom:Math.min(sheetPx(),innerHeight*0.6)+30,left:40,right:40};}
 function fit(pts){if(!mapReady||!pts.length)return;const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));map.fitBounds(b,{padding:padding(),maxZoom:16.5,duration:500});}
 function fitAll(){fit(Object.keys(ST).filter(n=>!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));}
