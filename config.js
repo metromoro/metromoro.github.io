@@ -11,12 +11,12 @@ window.APP_CONFIG = {
   ads: [
     { stations: ["Chacaíto", "Sabana Grande", "Plaza Venezuela"], emoji: "☕",
       title: "Tu café aquí", text: "Anuncia tu negocio a la gente que sale por esta estación.",
-      cta: "Escríbenos", url: "mailto:ingenieroantoniosira@gmail.com" },
+      cta: "Escríbenos", url: "mailto:ingantoniosira@gmail.com" },
     { stations: ["Altamira", "Chacao", "Miranda"], emoji: "🍔",
       title: "Tu restaurante aquí", text: "Llega a miles de personas que pasan por el este todos los días.",
-      cta: "Anúnciate", url: "mailto:ingenieroantoniosira@gmail.com" },
+      cta: "Anúnciate", url: "mailto:ingantoniosira@gmail.com" },
     { emoji: "📣", title: "Anúnciate en Metro Moro",
       text: "Tu marca frente a quienes se mueven en metro por Caracas.",
-      cta: "Más info", url: "mailto:ingenieroantoniosira@gmail.com" }
+      cta: "Más info", url: "mailto:ingantoniosira@gmail.com" }
   ]
 };
