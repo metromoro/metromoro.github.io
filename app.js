@@ -40,6 +40,15 @@ const SIGN_MAIL=CONTACT.replace(/^mailto:/,"").split("?")[0];
 const SIGN=`<span class="sign"><span class="mmt">M</span><span><small>Creador de Metro Moro</small><b>Morowix</b></span></span><div class="sdata"><div>Ing. Antonio Sira</div>${(CFG.phone||"").trim()?`<div>📞 ${esc(CFG.phone)}</div>`:""}${SIGN_MAIL?`<div>✉️ ${esc(SIGN_MAIL)}</div>`:""}</div>`;
 function contactLine(url){const mail=(url||"").replace(/^mailto:/,"").split("?")[0];const ph=(CFG.phone||"").trim();
   return `<span class="act">${ph?`📞 ${esc(ph)}`:""}${ph&&mail?" · ":""}${mail?`✉️ ${esc(mail)}`:""}</span>`;}
+// franja de publicidad fija arriba del panel: siempre a la vista, una sola línea, rota cada 9 s
+let adTimer=null,adKey="";
+function showAd(stations,fixed){const key=(stations||[]).join("|");if(key===adKey&&$("adbar").innerHTML)return;adKey=key;clearInterval(adTimer);
+  const paint=a=>{const bar=$("adbar");if(!a){bar.innerHTML="";bar.style.display="none";return;}bar.style.display="";
+    const mail=(a.url||"").startsWith("mailto:")?(a.url.replace(/^mailto:/,"").split("?")[0]):"";const ph=(CFG.phone||"").trim();
+    const sub=[a.text,ph&&"📞 "+ph,mail&&"✉️ "+mail].filter(Boolean);
+    bar.innerHTML=`<a class="adb" target="_blank" rel="noopener sponsored" href="${esc(a.url||"#")}"><span class="adm">${(a.url||"").startsWith("mailto:")?"M":esc(a.emoji||"📣")}</span><span class="adt"><span class="ad1"><i>Publicidad</i>${esc(a.title)}</span><span class="ad2">${esc(sub.join(" · "))}</span></span>${a.cta?`<span class="adc">${esc(a.cta)}</span>`:""}</a>`;};
+  paint(fixed||pickAd(stations||[]));
+  if((CFG.ads||[]).length>1)adTimer=setInterval(()=>paint(pickAd(stations||[])),9000);}
 function adHTML(a){if(!a)return"";
   if((a.url||"").startsWith("mailto:"))return `<a class="ad brand" target="_blank" rel="noopener" href="${esc(a.url)}"><span class="bl mm">M</span><span class="bt"><span class="ap">Publicidad · Metro Moro</span><span class="at">${esc(a.title)}</span><span class="ax">${esc(a.text||"")}</span>${contactLine(a.url)}</span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;
   return `<a class="ad" target="_blank" rel="noopener sponsored" href="${esc(a.url||"#")}"><span class="ae">${esc(a.emoji||"📣")}</span><span><span class="ap">Patrocinado</span><div class="at">${esc(a.title)}</div><div class="ax">${esc(a.text||"")}</div></span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;}
@@ -215,7 +224,7 @@ function marker(key,p,cls){if(!map)return;if(!p){if(markers[key]){markers[key].r
 
 // ================= PANEL INFERIOR =================
 const sheet=$("sheet");let sheetState="peek";
-const H={peek:()=>VIEW==="route"?240:VIEW==="trip"?190:170,half:()=>Math.round(innerHeight*0.52),full:()=>Math.round(innerHeight*0.9)};
+const H={peek:()=>(VIEW==="route"?240:VIEW==="trip"?190:170)+($("adbar")&&$("adbar").offsetHeight||0),half:()=>Math.round(innerHeight*0.52),full:()=>Math.round(innerHeight*0.9)};
 function sheetPx(){return H[sheetState]();}
 function setSheet(s){sheetState=s;document.documentElement.style.setProperty("--sheetH",H[s]()+"px");}
 (function drag(){let y0=null,h0=0,moved=0;const g=$("grab");
@@ -286,7 +295,7 @@ function renderIdle(tok){
   h+=`<div class="row" data-go="home"><span class="em">🏠</span><div class="tx"><div class="t1">Casa</div><div class="t2">${hm?esc(hm.name):"Toca para guardarla"}</div></div>${hm?`<button class="link" data-edit="home">Cambiar</button>`:""}</div>`;
   h+=`<div class="row" data-go="work"><span class="em">💼</span><div class="tx"><div class="t1">Trabajo</div><div class="t2">${wk?esc(wk.name):"Toca para guardarlo"}</div></div>${wk?`<button class="link" data-edit="work">Cambiar</button>`:""}</div>`;
   const rc=recents();if(rc.length){h+=`<div class="sec">Recientes</div>`;rc.slice(0,5).forEach((r,i)=>h+=`<div class="row" data-go="r${i}"><span class="em">🕘</span><div class="tx"><div class="t1">${esc(r.name)}</div></div></div>`);}
-  h+=adHTML(pickAd(FROM?[nearest([FROM.lat,FROM.lon]).n]:[]));
+  showAd(FROM?[nearest([FROM.lat,FROM.lon]).n]:[]);
   h+=`<p class="note">Estaciones y salidas: © colaboradores de OpenStreetMap. Tiempos estimados; no refleja estaciones cerradas ni fallas del servicio.</p>`;
   $("sc").innerHTML=h;setSheet(sheetState==="full"?"half":sheetState);
   const g=$("bGps");if(g)g.onclick=()=>useGPS(true);
@@ -322,7 +331,7 @@ function routeHTML(r){
     r.alts.forEach((a,i)=>{if(a.walkOnly){h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">🚶</span><div class="tx"><div class="t1">${fmt(a.total)} · ir caminando</div></div><span class="t2">›</span></div>`;return;}const f=a.legs[0],l=a.legs[a.legs.length-1];const lines=[...new Set(a.legs.filter(g=>g.type==="ride").map(g=>g.line))];
       h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">${lines.map(L=>`<span class="chip${LINES[L].dark?" y":""}" style="background:${LINES[L].color}">${LINES[L].short}</span>`).join("")}</span><div class="tx"><div class="t1">${fmt(a.total)} · ${esc(f.to)} → ${esc(l.from)}</div><div class="t2">${fmt(f.min)} a pie al inicio · ${fmt(l.min)} a pie al final</div></div><span class="t2">›</span></div>`;});}
   h+=`<div class="btns"><button class="btn sm" data-save="home">🏠 Guardar como Casa</button><button class="btn sm" data-save="work">💼 Guardar como Trabajo</button></div>`;
-  h+=adHTML(r.ad);
+  showAd(r.walkOnly?[]:r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]),r.ad);
   h+=`<p class="note">Tiempos estimados: tren ≈30 km/h, 3 min de espera, 4–6 min por transbordo. No refleja estaciones cerradas ni fallas del servicio.</p>`;
   return h;
 }
@@ -418,7 +427,7 @@ function renderStation(){
   const n=cardStation,ex=MD.exits[n]?EXITS[n]:[];
   let h=`<div class="vtop"><button class="link" data-back="${curLine?"line":"1"}">← ${curLine?LINES[curLine].name:"Inicio"}</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div><h2>${esc(n)} ${chips(n)}</h2><div class="btns"><button class="btn pri" id="sTo">Ir aquí</button><button class="btn" id="sFrom">Salir desde aquí</button></div>`;
   if(ex.length){h+=`<div class="sec">${ex.length} ${ex.length===1?"salida":"salidas"} · toca una para ir hasta ella</div>`;ex.forEach((e,i)=>h+=`<div class="row" data-go="x${esc(n)}|${i}"><span class="em">⬆️</span><div class="tx"><div class="t1">${e.name?esc(e.name):"Salida "+(i+1)}</div>${e.side?`<div class="t2">Lado ${e.side}</div>`:""}</div></div>`);}
-  h+=adHTML(pickAd([n]));
+  showAd([n]);
   h+=`<p class="note"><button class="link" id="sBack">← Volver</button></p>`;
   $("sc").innerHTML=h;
   $("sTo").onclick=()=>setPoint("to",stPoint(n));$("sFrom").onclick=()=>setPoint("from",stPoint(n));

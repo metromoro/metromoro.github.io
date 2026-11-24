@@ -131,6 +131,15 @@ h2{font-size:20px;margin:2px 0 10px}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(215,38,30,.55)}100%{box-shadow:0 0 0 18px rgba(215,38,30,0)}}
 @media(prefers-reduced-motion:reduce){.trainDot{animation:none}}
 .fromdot{width:18px;height:18px;border-radius:50%;background:#fff;border:5px solid var(--me);box-shadow:0 1px 4px #0005}
+/* franja de publicidad Metro Moro */
+#adbar{flex:none;padding:0 12px 8px}
+.adb{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 8px 8px 8px;border-radius:14px;background:#16171b;color:#fff;text-decoration:none;min-height:54px}
+.adm{width:38px;height:38px;border-radius:10px;background:#d7261e;color:#fff;font-weight:900;font-size:20px;display:grid;place-items:center}
+.adt{min-width:0;display:flex;flex-direction:column;gap:1px}
+.ad1,.ad2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad1{font-weight:700;font-size:14px}.ad1 i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#ff8f86;margin-right:6px;vertical-align:1px}
+.ad2{font-size:12px;color:#c9ccd2}
+.adc{background:#d7261e;color:#fff;font-size:12px;font-weight:700;border-radius:999px;padding:8px 12px;white-space:nowrap}
 /* publicidad con la marca Metro Moro */
 .ad.brand{position:relative;overflow:hidden;background:#16171b;border:0;color:#fff}
 .ad.brand::before{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:28px;background:#d7261e;opacity:.18;transform:rotate(18deg)}
@@ -175,7 +184,7 @@ h2{font-size:20px;margin:2px 0 10px}
 <button id="lgBtn" aria-label="Ver líneas del Metro"><i style="background:#E2231A"></i><i style="background:#00965E"></i><i style="background:#0067B1"></i><i style="background:#F2B705"></i><i style="background:#8E44AD"></i> Líneas</button>
 <div id="legend"></div>
 
-<div id="sheet"><div class="grab" id="grab"><i></i></div><div id="sc"></div></div>
+<div id="sheet"><div class="grab" id="grab"><i></i></div><div id="adbar"></div><div id="sc"></div></div>
 
 <div class="full" id="picker">
   <div class="ptop"><input id="q" autocomplete="off" enterkeyhint="search" placeholder="Busca un lugar, dirección o estación"><button class="close" id="pclose">Cerrar</button></div>
@@ -200,9 +209,9 @@ h2{font-size:20px;margin:2px 0 10px}
 
 <div id="toast"></div>
 
-<script src="config.js?v=24"></script>
-<script src="data.js?v=24"></script>
+<script src="config.js?v=25"></script>
+<script src="data.js?v=25"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>
