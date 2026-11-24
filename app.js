@@ -75,7 +75,9 @@ const adj={},nodes={},nid=(L,s)=>L+"|"+s;
 })();
 function route(from,to,ov,opt){opt=opt||{};
   const fp=[from.lat,from.lon],tp=[to.lat,to.lon],direct=walkMin(fp,tp),names=Object.keys(ST);
-  const pick=(p,side)=>ov&&ov[side]?Object.entries(ov[side]).map(([n,v])=>({n,w:v.w,ex:v.ex})):names.map(n=>({n,...bestExit(p,n)})).sort((a,b)=>a.w-b.w).filter((x,i)=>i<3||x.w<=30);
+  // regla: se entra por la entrada más cercana a pie y se sale por la salida más cercana al destino (con 3 min de tolerancia)
+  const pick=(p,side)=>{const all=(ov&&ov[side]?Object.entries(ov[side]).map(([n,v])=>({n,w:v.w,ex:v.ex})):names.map(n=>({n,...bestExit(p,n)}))).sort((a,b)=>a.w-b.w);
+    if(!all.length)return all;const tol=all[0].w+(opt.wide?25:3);return all.filter(x=>x.w<=tol);};
   const srcs=pick(fp,"o"),dsts=pick(tp,"d").filter(x=>!opt.endOnly||x.n===opt.endOnly),dist={},prev={},done=new Set();
   for(const s of srcs)for(const L of stationLines[s.n]){const id=nid(L,s.n),d=s.w+3;if(dist[id]==null||d<dist[id]){dist[id]=d;prev[id]={start:true,walk:s.w,ex:s.ex};}}
   for(;;){let u=null,b=Infinity;for(const k in dist)if(!done.has(k)&&dist[k]<b){b=dist[k];u=k;}if(!u)break;done.add(u);
@@ -109,8 +111,9 @@ function osrm(url){const run=async()=>{for(let i=0;i<3;i++){try{const c=new Abor
   if(r.ok){const j=await r.json();if(j.code==="Ok")return j;}}catch(e){}await new Promise(z=>setTimeout(z,700*(i+1)));}return null;};
   const p=osrmQ.then(run);osrmQ=p.catch(()=>{});return p;}
 async function walkTable(p,toStations){ // toStations: p -> salidas ; si no, salidas -> p
-  const cand=Object.keys(ST).map(n=>({n,...bestExit(p,n)})).sort((x,y)=>x.w-y.w).filter((x,i)=>i<4||(i<9&&x.w<=45)).map(x=>x.n);
-  const ex=[];cand.forEach(n=>EXITS[n].forEach(e=>ex.push({n,e})));
+  // todas las salidas de todas las estaciones, ordenadas por cercanía (el servidor acepta hasta 100 puntos)
+  const ex=[];for(const n in EXITS)EXITS[n].forEach(e=>ex.push({n,e,d:hav(p,e.ll)}));ex.sort((x,y)=>x.d-y.d);ex.length=Math.min(ex.length,98);
+  const cand=[...new Set(ex.map(x=>x.n))];
   const key=(toStations?"o":"d")+p.join()+cand.join();if(tableCache[key])return tableCache[key];
   const L=x=>({lat:x[0],lon:x[1]});
   const vj=await valhalla("sources_to_targets",toStations?{sources:[L(p)],targets:ex.map(x=>L(x.e.ll)),costing:"pedestrian"}:{sources:ex.map(x=>L(x.e.ll)),targets:[L(p)],costing:"pedestrian"});
@@ -331,9 +334,9 @@ function bindRoute(r){
 }
 // otras opciones: bajarse en otra estación, o ir en Metro aunque caminar sea más rápido
 function withAlts(r,ov){
-  const ends=ov&&ov.d?Object.keys(ov.d):Object.keys(ST).map(n=>({n,...bestExit([TO.lat,TO.lon],n)})).sort((a,b)=>a.w-b.w).slice(0,5).map(x=>x.n);
+  const ends=ov&&ov.d?Object.entries(ov.d).sort((a,b)=>a[1].w-b[1].w).slice(0,6).map(x=>x[0]):Object.keys(ST).map(n=>({n,...bestExit([TO.lat,TO.lon],n)})).sort((a,b)=>a.w-b.w).slice(0,5).map(x=>x.n);
   const chosen=r.walkOnly?null:r.legs[r.legs.length-1].from;const alts=[];
-  for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n});if(a.walkOnly||!a.legs.some(g=>g.type==="ride")||a.legs[0].to===a.legs[a.legs.length-1].from)continue;
+  for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n,wide:true});if(a.walkOnly||!a.legs.some(g=>g.type==="ride")||a.legs[0].to===a.legs[a.legs.length-1].from)continue;
     if(alts.some(x=>x.legs[x.legs.length-1].from===a.legs[a.legs.length-1].from))continue;alts.push(a);}
   alts.sort((a,b)=>a.total-b.total);r.alts=alts.filter(a=>a.total<=r.total+20).slice(0,r.walkOnly?2:3);
   r.alts.forEach(a=>a.ad=r.ad);return r;}
