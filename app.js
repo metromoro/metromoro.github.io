@@ -102,18 +102,32 @@ async function walkRoute(a,b){
 }
 
 // ================= MAPA =================
-const DARK=false; // mapa siempre claro
+const STYLES={claro:["Claro","positron","Suave y limpio"],colorido:["Colorido","liberty","Con edificios y parques"],brillante:["Brillante","bright","Calles muy marcadas"],oscuro:["Oscuro","dark","Para la noche"]};
+let mapStyle=store.get("mapStyle","claro");if(!STYLES[mapStyle])mapStyle="claro";
+let DARK=mapStyle==="oscuro";
 let map=null,mapReady=false;
 const LL=p=>[p[1],p[0]];
 const fc=f=>({type:"FeatureCollection",features:f});
 const lineF=(pts,props)=>({type:"Feature",properties:props||{},geometry:{type:"LineString",coordinates:pts.map(LL)}});
 const ptF=(p,props)=>({type:"Feature",properties:props||{},geometry:{type:"Point",coordinates:LL(p)}});
+function netOp(v){if(map&&map.getLayer("net")){map.setPaintProperty("net","line-opacity",v);map.setPaintProperty("net-case","line-opacity",v);}}
 function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
-  map=new maplibregl.Map({container:"map",style:"https://tiles.openfreemap.org/styles/positron",center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
+  map=new maplibregl.Map({container:"map",style:"https://tiles.openfreemap.org/styles/"+STYLES[mapStyle][1],center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
   map.touchZoomRotate.disableRotation();
+  map.on("style.load",()=>{overlay();if(mapReady)render(true);});
   map.on("load",()=>{
+    for(const id of["st","ex"]){map.on("click",id,e=>{const f=e.features[0];if(f)openStation(f.properties.n);});map.on("mouseenter",id,()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave",id,()=>map.getCanvas().style.cursor="");}
+    map.on("click",e=>{if(map.getLayer("st")&&map.queryRenderedFeatures(e.point,{layers:["st","ex"]}).length)return;if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,{lat:e.lngLat.lat,lon:e.lngLat.lng,name:"Punto en el mapa"});}});
+    map.on("zoomend",()=>{if(map.getLayer("st-lbl"))map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);});
+    mapReady=true;
+    if(!ME&&!TO)fitAll();
+    render();
+  });
+}
+function overlay(){
+    if(map.getSource("net"))return;
     const net=[];for(const L in LINES)for(const sh of(MD.shapes[L]||[]))net.push(lineF(sh,{c:LINES[L].color}));
     map.addSource("net",{type:"geojson",data:fc(net)});
     map.addSource("route",{type:"geojson",data:fc([])});
@@ -132,15 +146,9 @@ function initMap(){
     map.addLayer({id:"ex-lbl",type:"symbol",source:"ex",minzoom:16.3,layout:{"text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.2],"text-anchor":"top","text-optional":true},paint:{"text-color":DARK?"#eee":"#222","text-halo-color":DARK?"#000":"#fff","text-halo-width":1.5}});
     map.addLayer({id:"st",type:"circle",source:"st",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,["case",["==",["get","x"],1],4,3],15,["case",["==",["get","x"],1],9,7]],"circle-color":["case",["==",["get","x"],1],"#fff",["get","c"]],"circle-stroke-color":["case",["==",["get","x"],1],"#16171b","#fff"],"circle-stroke-width":["case",["==",["get","x"],1],2.5,2]}});
     map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":DARK?"#fff":"#16171b","text-halo-color":DARK?"#000":"#fff","text-halo-width":2}});
-    map.setFilter("st-lbl",null);
-    const lblZoom=()=>{const z=map.getZoom();map.setFilter("st-lbl",z>=13.3?null:["==",["get","x"],1]);};map.on("zoomend",lblZoom);lblZoom();
-    for(const id of["st","ex"]){map.on("click",id,e=>{const f=e.features[0];if(f)openStation(f.properties.n);});map.on("mouseenter",id,()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave",id,()=>map.getCanvas().style.cursor="");}
-    map.on("click",e=>{if(map.queryRenderedFeatures(e.point,{layers:["st","ex"]}).length)return;if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,{lat:e.lngLat.lat,lon:e.lngLat.lng,name:"Punto en el mapa"});}});
-    mapReady=true;
-    if(!ME&&!TO)fitAll();
-    render();
-  });
+    map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
+function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";store.set("mapStyle",k);map.setStyle("https://tiles.openfreemap.org/styles/"+STYLES[k][1]);}
 function padding(){return{top:($("top").offsetHeight||120)+20,bottom:Math.min(sheetPx(),innerHeight*0.6)+30,left:40,right:40};}
 function fit(pts){if(!mapReady||!pts.length)return;const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));map.fitBounds(b,{padding:padding(),maxZoom:16.5,duration:500});}
 function fitAll(){fit(Object.keys(ST).filter(n=>!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));}
@@ -195,7 +203,7 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));map.setPaintProperty("net","line-opacity",1);map.setPaintProperty("net-case","line-opacity",1);}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));netOp(1);}
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="station")return renderStation();
   if(!TO)return renderIdle(tok);
@@ -264,7 +272,7 @@ function renderRoute(tok,keepView){
   if(!mapReady)return;
   const pts=[a,b];
   if(r.walkOnly){walkRoute(a,b).then(w=>{if(tok!==renderTok)return;setData("walk",fc([lineF(w?w.path:[a,b])]));});if(!keepView)fit(pts);return;}
-  map.setPaintProperty("net","line-opacity",.28);map.setPaintProperty("net-case","line-opacity",.28);
+  netOp(.28);
   const rides=r.legs.filter(g=>g.type==="ride").map(g=>{const s=pathShape(g.line,g.path);s.forEach(p=>pts.push(p));return lineF(s,{c:LINES[g.line].color});});
   setData("route",fc(rides));
   const first=r.legs[0],last=r.legs[r.legs.length-1];pts.push(first.ex.ll,last.ex.ll);
@@ -316,7 +324,7 @@ function endTrip(){if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=nu
 function renderTrip(){
   const T=TRIP,r=T.r,n=T.seq.length,cur=T.seq[T.i],next=T.seq[T.i+1];
   const finalLeg=r.legs[r.legs.length-1];
-  if(mapReady){map.setPaintProperty("net","line-opacity",.28);map.setPaintProperty("net-case","line-opacity",.28);
+  if(mapReady){netOp(.28);
     setData("route",fc(r.legs.filter(g=>g.type==="ride").map(g=>lineF(pathShape(g.line,g.path),{c:LINES[g.line].color}))));}
   // ¿dónde se baja uno de esta línea? (último índice del tramo)
   const legEnd=k=>{let j=k;while(j+1<n&&T.seq[j+1].leg===T.seq[k].leg)j++;return j;};
@@ -396,6 +404,9 @@ $("gps").onclick=()=>useGPS(true);
 function openMenu(){
   let h=`<div class="row" data-m="dl"><span class="em">📶</span><div class="tx"><div class="t1">Guardar el mapa para usar sin señal</div><div class="t2">Descarga el mapa de Caracas (unos 10–20 MB). Mejor con Wi-Fi.${store.get("offline",0)?" · Ya lo guardaste":""}</div></div></div>`;
   if(!navigator.standalone)h+=`<div class="row" data-m="ios"><span class="em">📲</span><div class="tx"><div class="t1">Instalar como app</div><div class="t2">iPhone: Safari › Compartir › «Agregar a pantalla de inicio»</div></div></div>`;
+  h+=`<div class="sec">Tipo de mapa</div>`;
+  for(const k in STYLES)h+=`<div class="row" data-m="style:${k}"><span class="em">${k===mapStyle?"✅":"🗺️"}</span><div class="tx"><div class="t1">${STYLES[k][0]}</div><div class="t2">${STYLES[k][2]}</div></div></div>`;
+  h+=`<div class="sec">Más</div>`;
   h+=`<div class="row" data-m="net"><span class="em">🗺️</span><div class="tx"><div class="t1">Ver toda la red</div><div class="t2">Las 5 líneas y el Metro Los Teques</div></div></div>`;
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m. (según OpenStreetMap)</div></div></div>`;
   if(CONTACT)h+=`<div class="row" data-m="ads"><span class="em">📣</span><div class="tx"><div class="t1">Anuncia tu negocio aquí</div><div class="t2">Escríbenos por correo</div></div></div>`;
@@ -406,6 +417,7 @@ function openMenu(){
 }
 $("mbtn").onclick=openMenu;$("mclose").onclick=()=>$("menu").classList.remove("on");
 $("mlist").onclick=e=>{const r=e.target.closest("[data-m]");if(!r)return;const m=r.dataset.m;
+  if(m.startsWith("style:")){setMapStyle(m.slice(6));openMenu();toast("Mapa: "+STYLES[mapStyle][0]);return;}
   if(m==="dl"){$("menu").classList.remove("on");downloadMap();}
   if(m==="ios"){$("menu").classList.remove("on");$("iosTip").style.display="block";$("welcome").classList.add("on");}
   if(m==="net"){$("menu").classList.remove("on");clearDest();fitAll();}
