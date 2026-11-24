@@ -73,16 +73,16 @@ const adj={},nodes={},nid=(L,s)=>L+"|"+s;
   x(nid("L1","Capitolio"),nid("L2","El Silencio"),5);
   for(const a of["L1","L3"])for(const b of["L4","L5"])x(nid(a,"Plaza Venezuela"),nid(b,"Zona Rental"),6);
 })();
-function route(from,to,ov){
+function route(from,to,ov,opt){opt=opt||{};
   const fp=[from.lat,from.lon],tp=[to.lat,to.lon],direct=walkMin(fp,tp),names=Object.keys(ST);
   const pick=(p,side)=>ov&&ov[side]?Object.entries(ov[side]).map(([n,v])=>({n,w:v.w,ex:v.ex})):names.map(n=>({n,...bestExit(p,n)})).sort((a,b)=>a.w-b.w).filter((x,i)=>i<3||x.w<=30);
-  const srcs=pick(fp,"o"),dsts=pick(tp,"d"),dist={},prev={},done=new Set();
+  const srcs=pick(fp,"o"),dsts=pick(tp,"d").filter(x=>!opt.endOnly||x.n===opt.endOnly),dist={},prev={},done=new Set();
   for(const s of srcs)for(const L of stationLines[s.n]){const id=nid(L,s.n),d=s.w+3;if(dist[id]==null||d<dist[id]){dist[id]=d;prev[id]={start:true,walk:s.w,ex:s.ex};}}
   for(;;){let u=null,b=Infinity;for(const k in dist)if(!done.has(k)&&dist[k]<b){b=dist[k];u=k;}if(!u)break;done.add(u);
     for(const e of adj[u]||[]){const d=dist[u]+e.w;if(dist[e.to]==null||d<dist[e.to]-1e-9){dist[e.to]=d;prev[e.to]={from:u,e};}}}
   let end=null,bt=Infinity;
   for(const d of dsts)for(const L of stationLines[d.n]){const id=nid(L,d.n);if(dist[id]==null)continue;const t=dist[id]+d.w;if(t<bt){bt=t;end={id,walk:d.w,ex:d.ex};}}
-  if(!end||direct<=bt)return{walkOnly:true,total:direct,direct};
+  if(!end||(direct<=bt&&!opt.force))return{walkOnly:true,total:direct,direct};
   const seq=[];let c=end.id;while(!prev[c].start){seq.unshift({to:c,...prev[c]});c=prev[c].from;}
   const legs=[{type:"walk",first:true,to:nodes[c].st,min:prev[c].walk,ex:prev[c].ex}];let cur=null;
   for(const s of seq){
@@ -315,6 +315,9 @@ function routeHTML(r){
   h+=`<div class="btns">${r.walkOnly?`<a class="btn pri" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],[TO.lat,TO.lon])}">Ir caminando ↗</a>`:`<button class="btn pri" id="bTrip">▶ Iniciar viaje</button>`}<button class="btn" id="bShare">Compartir</button></div>`;
   h+=`<button class="from" id="bFrom2"><span class="d"></span><span style="flex:1"><span style="display:block;font-size:12px;color:var(--mut)">Desde</span><b>${esc(FROM.name)}</b></span><span class="link">Cambiar</span></button>`;
   if(r.walkOnly)h+=`<p class="hint">Te queda más rápido ir caminando que tomar el Metro.</p>`;else h+=stepsHTML(r);
+  if(r.alts&&r.alts.length){h+=`<div class="sec">${r.walkOnly?"Si prefieres ir en Metro":"Otras opciones"}</div>`;
+    r.alts.forEach((a,i)=>{if(a.walkOnly){h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">🚶</span><div class="tx"><div class="t1">${fmt(a.total)} · ir caminando</div></div><span class="t2">›</span></div>`;return;}const f=a.legs[0],l=a.legs[a.legs.length-1];const lines=[...new Set(a.legs.filter(g=>g.type==="ride").map(g=>g.line))];
+      h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">${lines.map(L=>`<span class="chip${LINES[L].dark?" y":""}" style="background:${LINES[L].color}">${LINES[L].short}</span>`).join("")}</span><div class="tx"><div class="t1">${fmt(a.total)} · ${esc(f.to)} → ${esc(l.from)}</div><div class="t2">${fmt(f.min)} a pie al inicio · ${fmt(l.min)} a pie al final</div></div><span class="t2">›</span></div>`;});}
   h+=`<div class="btns"><button class="btn sm" data-save="home">🏠 Guardar como Casa</button><button class="btn sm" data-save="work">💼 Guardar como Trabajo</button></div>`;
   h+=adHTML(r.ad);
   h+=`<p class="note">Tiempos estimados: tren ≈30 km/h, 3 min de espera, 4–6 min por transbordo. No refleja estaciones cerradas ni fallas del servicio.</p>`;
@@ -324,15 +327,24 @@ function bindRoute(r){
   const t=$("bTrip");if(t)t.onclick=()=>startTrip(r);
   $("bShare").onclick=()=>share(r);$("bFrom2").onclick=()=>openPicker("from");
   $("sc").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>setPoint(b.dataset.save,{...TO}));
+  $("sc").querySelectorAll("[data-alt]").forEach(b=>b.onclick=()=>{const i=+b.dataset.alt,a=r.alts[i];a.alts=[r,...r.alts.filter((_,j)=>j!==i)];r.alts=null;$("sc").scrollTop=0;showRoute(a,renderTok,false,true);});
 }
+// otras opciones: bajarse en otra estación, o ir en Metro aunque caminar sea más rápido
+function withAlts(r,ov){
+  const ends=ov&&ov.d?Object.keys(ov.d):Object.keys(ST).map(n=>({n,...bestExit([TO.lat,TO.lon],n)})).sort((a,b)=>a.w-b.w).slice(0,5).map(x=>x.n);
+  const chosen=r.walkOnly?null:r.legs[r.legs.length-1].from;const alts=[];
+  for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n});if(a.walkOnly)continue;
+    if(alts.some(x=>x.legs[x.legs.length-1].from===a.legs[a.legs.length-1].from))continue;alts.push(a);}
+  alts.sort((a,b)=>a.total-b.total);r.alts=alts.filter(a=>a.total<=r.total+20).slice(0,r.walkOnly?2:3);
+  r.alts.forEach(a=>a.ad=r.ad);return r;}
 function renderRoute(tok,keepView){
   VIEW="route";const a=[FROM.lat,FROM.lon],b=[TO.lat,TO.lon];const r=route(FROM,TO);
   if(!r.walkOnly)r.ad=pickAd(r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]));
-  showRoute(r,tok,keepView,false);
+  withAlts(r,null);showRoute(r,tok,keepView,false);
   // con señal: recalcula con las caminatas reales para escoger la mejor estación y la mejor salida
   Promise.all([walkTable(a,true),walkTable(b,false)]).then(([o,d])=>{
     if(tok!==renderTok||VIEW!=="route"||(!o&&!d))return;
-    const r2=route(FROM,TO,{o,d});r2.ad=r.ad||(!r2.walkOnly?pickAd(r2.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to])):null);
+    const ov={o,d};const r2=route(FROM,TO,ov);r2.ad=r.ad||(!r2.walkOnly?pickAd(r2.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to])):null);withAlts(r2,ov);
     const same=!r.walkOnly&&!r2.walkOnly&&r.legs[0].to===r2.legs[0].to&&r.legs[r.legs.length-1].from===r2.legs[r2.legs.length-1].from;
     showRoute(r2,tok,keepView||same,true);
   });
