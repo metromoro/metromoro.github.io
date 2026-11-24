@@ -14,7 +14,7 @@ const LINES={
  LT:{name:"Metro Los Teques",short:"LT",color:"#8A6A3B",paths:[{s:["Las Adjuntas","Alí Primera","Guaicaipuro","Independencia"],fwd:"Independencia",back:"Las Adjuntas"}]}
 };
 const ENDS={L1:"Propatria ↔ Palo Verde",L2:"El Silencio ↔ Las Adjuntas / Zoológico",L3:"Plaza Venezuela ↔ La Rinconada",L4:"Capuchinos ↔ Zona Rental",L5:"Zona Rental ↔ Bello Monte",LT:"Las Adjuntas ↔ Independencia"};
-const PLACES=[["Plaza Bolívar","🏛️",10.5061,-66.9146],["Panteón Nacional","🏛️",10.5112,-66.9098],["Torres de Parque Central","🏢",10.4978,-66.9008],["UCV – Ciudad Universitaria","🎓",10.4905,-66.8905],["Hospital Universitario","🏥",10.4925,-66.8930],["Bulevar de Sabana Grande","🛍️",10.4957,-66.8745],["Sambil Chacao","🛍️",10.4903,-66.8540],["Plaza Altamira","⛲",10.4965,-66.8490],["Parque del Este","🌳",10.4925,-66.8390],["CCCT","🏢",10.4835,-66.8450],["Las Mercedes","🍽️",10.4825,-66.8605],["Casco de Petare","⛪",10.4772,-66.8068],["Terminal La Bandera","🚌",10.4785,-66.9010],["Bulevar de Catia","🛍️",10.5088,-66.9405],["Zoológico de Caricuao","🦁",10.4290,-66.9860]].map(([n,e,la,lo])=>({name:n,em:e,lat:la,lon:lo}));
+const PLACES=[["Plaza Bolívar","🏛️",10.50600,-66.91463],["Panteón Nacional","🏛️",10.51319,-66.91255],["Torres de Parque Central","🏢",10.4978,-66.9008],["UCV – Ciudad Universitaria","🎓",10.49018,-66.89166],["Hospital Universitario","🏥",10.49048,-66.89380],["Bulevar de Sabana Grande","🛍️",10.49264,-66.87397],["Centro Sambil","🛍️",10.48903,-66.85425],["CCCT – Ciudad Tamanaco","🏢",10.48535,-66.85503],["Las Mercedes","🍽️",10.48036,-66.85553],["Plaza Altamira (Francia)","⛲",10.49602,-66.84888],["Parque del Este","🌳",10.49254,-66.83917],["Centro Comercial Líder","🛍️",10.48615,-66.82090],["Casco de Petare","⛪",10.47727,-66.80868],["Terminal La Bandera","🚌",10.47587,-66.89931],["Bulevar de Catia","🛍️",10.50788,-66.94793],["Zoológico de Caricuao","🦁",10.4290,-66.9860]].map(([n,e,la,lo])=>({name:n,em:e,lat:la,lon:lo}));
 const OPEN=[5*60+30,23*60]; // horario según OpenStreetMap (Mo-Su 05:30-23:00)
 const URL_BASE=location.origin+location.pathname;
 const CONTACT=(CFG.ads||[]).map(a=>a.url||"").find(u=>u.startsWith("mailto:"))||"";
@@ -141,6 +141,7 @@ function overlay(){
     map.addSource("st",{type:"geojson",data:fc(stF)});
     const exF=[];for(const n in ST)if(MD.exits[n])for(const e of EXITS[n])exF.push(ptF(e.ll,{n,name:e.name||"Salida"}));
     map.addSource("ex",{type:"geojson",data:fc(exF)});
+    map.addSource("rex",{type:"geojson",data:fc([])});
     const W=(a,b)=>["interpolate",["linear"],["zoom"],10,a,16,b];
     map.addLayer({id:"net-case",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":DARK?"#17181c":"#fff","line-width":W(4,12)}});
     map.addLayer({id:"net",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(2.5,8)}});
@@ -149,8 +150,10 @@ function overlay(){
     map.addLayer({id:"route",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(5,12)}});
     map.addLayer({id:"ex",type:"circle",source:"ex",minzoom:15,paint:{"circle-radius":6,"circle-color":"#16171b","circle-stroke-color":"#fff","circle-stroke-width":2}});
     map.addLayer({id:"ex-lbl",type:"symbol",source:"ex",minzoom:16.3,layout:{"text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.2],"text-anchor":"top","text-optional":true},paint:{"text-color":DARK?"#eee":"#222","text-halo-color":DARK?"#000":"#fff","text-halo-width":1.5}});
+    map.addLayer({id:"rex",type:"circle",source:"rex",paint:{"circle-radius":8,"circle-color":["case",["==",["get","k"],"in"],"#1aa260","#d7261e"],"circle-stroke-color":"#fff","circle-stroke-width":3}});
     map.addLayer({id:"st",type:"circle",source:"st",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,["case",["==",["get","x"],1],4,3],15,["case",["==",["get","x"],1],9,7]],"circle-color":["case",["==",["get","x"],1],"#fff",["get","c"]],"circle-stroke-color":["case",["==",["get","x"],1],"#16171b","#fff"],"circle-stroke-width":["case",["==",["get","x"],1],2.5,2]}});
     map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":DARK?"#fff":"#16171b","text-halo-color":DARK?"#000":"#fff","text-halo-width":2}});
+    map.addLayer({id:"rex-lbl",type:"symbol",source:"rex",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.3],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"in"],"#137a46","#b01f18"],"text-halo-color":DARK?"#000":"#fff","text-halo-width":2}});
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
 function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";applyTheme();store.set("mapStyle",k);map.setStyle("https://tiles.openfreemap.org/styles/"+STYLES[k][1],{diff:false});}
@@ -208,7 +211,7 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));netOp(1);}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));netOp(1);}
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="station")return renderStation();
   if(VIEW==="line")return renderLine();
@@ -283,14 +286,17 @@ function renderRoute(tok,keepView){
   const rides=r.legs.filter(g=>g.type==="ride").map(g=>{const s=pathShape(g.line,g.path);s.forEach(p=>pts.push(p));return lineF(s,{c:LINES[g.line].color});});
   setData("route",fc(rides));
   const first=r.legs[0],last=r.legs[r.legs.length-1];pts.push(first.ex.ll,last.ex.ll);
-  setData("walk",fc([lineF([a,first.ex.ll]),lineF([last.ex.ll,b])]));
+  const rexData=()=>fc([ptF(first.ex.ll,{k:"in",t:"Entra"+(first.ex.name?" · "+first.ex.name:"")}),ptF(last.ex.ll,{k:"out",t:"Sal"+(last.ex.name?" · "+last.ex.name:"")})]);
+  setData("walk",fc([lineF([a,first.ex.ll]),lineF([last.ex.ll,b])]));setData("rex",rexData());
   if(!keepView)fit(pts);
-  Promise.all([walkRoute(a,first.ex.ll),walkRoute(last.ex.ll,b)]).then(([w1,w2])=>{
+  // elegir la salida por la caminata real (calles), no en línea recta
+  const bestReal=async(n,from,to)=>{const c=EXITS[n];const ws=await Promise.all(c.map(e=>from?walkRoute(from,e.ll):walkRoute(e.ll,to)));let bi=-1,bm=Infinity;ws.forEach((w,i)=>{if(w&&w.min<bm){bm=w.min;bi=i;}});return bi<0?null:{ex:c[bi],w:ws[bi]};};
+  Promise.all([bestReal(first.to,a,null),bestReal(last.from,null,b)]).then(([s1,s2])=>{
     if(tok!==renderTok)return;
-    setData("walk",fc([lineF(w1?w1.path:[a,first.ex.ll]),lineF(w2?w2.path:[last.ex.ll,b])]));
-    if(w1){r.total+=w1.min-first.min;first.min=w1.min;first.m=w1.m;}
-    if(w2){r.total+=w2.min-last.min;last.min=w2.min;last.m=w2.m;}
-    if((w1||w2)&&VIEW==="route"){const st=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);$("sc").scrollTop=st;}
+    if(s1){r.total+=s1.w.min-first.min;first.min=s1.w.min;first.m=s1.w.m;first.ex=s1.ex;}
+    if(s2){r.total+=s2.w.min-last.min;last.min=s2.w.min;last.m=s2.w.m;last.ex=s2.ex;}
+    setData("walk",fc([lineF(s1?s1.w.path:[a,first.ex.ll]),lineF(s2?s2.w.path:[last.ex.ll,b])]));setData("rex",rexData());
+    if((s1||s2)&&VIEW==="route"){const st=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);$("sc").scrollTop=st;}
   });
 }
 
