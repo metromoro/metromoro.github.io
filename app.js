@@ -159,7 +159,7 @@ function marker(key,p,cls){if(!map)return;if(!p){if(markers[key]){markers[key].r
 
 // ================= PANEL INFERIOR =================
 const sheet=$("sheet");let sheetState="peek";
-const H={peek:()=>VIEW==="route"?240:170,half:()=>Math.round(innerHeight*0.52),full:()=>Math.round(innerHeight*0.9)};
+const H={peek:()=>VIEW==="route"?240:VIEW==="trip"?190:170,half:()=>Math.round(innerHeight*0.52),full:()=>Math.round(innerHeight*0.9)};
 function sheetPx(){return H[sheetState]();}
 function setSheet(s){sheetState=s;document.documentElement.style.setProperty("--sheetH",H[s]()+"px");}
 (function drag(){let y0=null,h0=0,moved=0;const g=$("grab");
@@ -338,11 +338,10 @@ async function share(r){
 // --- modo en el tren ---
 function startTrip(r){
   const seq=[];r.legs.forEach((g,li)=>{if(g.type==="ride")g.path.forEach((s,i)=>{if(i===0&&seq.length&&seq[seq.length-1].st===s){seq[seq.length-1].xfer=true;return;}seq.push({st:s,leg:li,line:g.line});});});
-  TRIP={r,seq,i:0};VIEW="trip";render();setSheet("full");
-  if(mapReady)map.easeTo({center:LL(ST[seq[0].st]),zoom:15,duration:500});
+  TRIP={r,seq,i:0};VIEW="trip";setSheet("half");render();
   try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(l=>{if(TRIP)TRIP.lock=l;}).catch(()=>{});}catch(e){}
 }
-function endTrip(){if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;VIEW=TO?"route":"idle";render(true);}
+function endTrip(){marker("train",null);if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;VIEW=TO?"route":"idle";render(true);}
 function renderTrip(){
   const T=TRIP,r=T.r,n=T.seq.length,cur=T.seq[T.i],next=T.seq[T.i+1];
   const finalLeg=r.legs[r.legs.length-1];
@@ -361,7 +360,11 @@ function renderTrip(){
   h+=`<div class="btns">${T.i===n-1?`<button class="btn pri" id="tEnd">Terminar viaje</button>`:`<button class="btn pri" id="tNext">Llegué a ${esc(next.st)}</button><button class="btn" id="tEnd" style="flex:.5">Salir</button>`}</div>`;
   h+=`<p class="note">Abajo casi no hay GPS: toca «Llegué» en cada estación. Si tu teléfono tiene señal cerca de una estación, avanzo solo.</p>`;
   $("sc").innerHTML=h;
-  const nb=$("tNext");if(nb)nb.onclick=()=>{TRIP.i++;render();if(mapReady)map.easeTo({center:LL(ST[TRIP.seq[TRIP.i].st]),duration:400});if(navigator.vibrate)navigator.vibrate(30);};
+  const nb=$("tNext");if(nb)nb.onclick=()=>{TRIP.i++;render();if(navigator.vibrate)navigator.vibrate(30);};
+  // en el mapa: dónde va el tren y la próxima estación, siempre a la vista sobre el panel
+  if(mapReady){const el=marker("train",ST[cur.st],"trainDot");if(markers.train)markers.train.getElement().style.setProperty("--lc",LINES[cur.line].color);
+    const pts=[ST[cur.st]];if(next)pts.push(ST[next.st]);if(ME&&TRIP.follow)pts.push([ME.lat,ME.lon]);
+    if(pts.length>1)fit(pts);else map.easeTo({center:LL(pts[0]),zoom:15.5,padding:padding(),duration:500});}
   $("tEnd").onclick=endTrip;
   const c=$("sc").querySelector(".stops .cur");if(c)c.scrollIntoView({block:"center"});
 }
@@ -417,7 +420,7 @@ function useGPS(user){
     if(pendingGPS){const w=pendingGPS;pendingGPS=null;setPoint(w,{...ME,name:"Mi ubicación",live:w==="from"});}
     else if(first){if(!FROM){FROM={...ME,name:"Mi ubicación",live:true};render();}if(mapReady&&!TO)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:14.5,duration:600});}
     else if(FROM&&FROM.live&&hav([FROM.lat,FROM.lon],[ME.lat,ME.lon])>0.06&&VIEW!=="trip"&&VIEW!=="station"){FROM={...ME,name:"Mi ubicación",live:true};render(true);}
-    if(TRIP){const nx=TRIP.seq[TRIP.i+1];if(nx&&hav([ME.lat,ME.lon],ST[nx.st])<0.2&&p.coords.accuracy<150){TRIP.i++;render();if(navigator.vibrate)navigator.vibrate([60,40,60]);}}
+    if(TRIP){TRIP.follow=p.coords.accuracy<300;const nx=TRIP.seq[TRIP.i+1];if(nx&&hav([ME.lat,ME.lon],ST[nx.st])<0.2&&p.coords.accuracy<150){TRIP.i++;render();if(navigator.vibrate)navigator.vibrate([60,40,60]);}}
   },err=>{watching=false;if(err.code===1&&(user||!FROM))toast("Sin permiso de ubicación. Actívalo en Ajustes › Safari › Ubicación, o elige tu punto de partida.",5000);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
 }
 $("gps").onclick=()=>useGPS(true);
