@@ -37,8 +37,10 @@ const chips=n=>[...stationLines[n]].map(chip).join(" ");
 function pickAd(stations){const ads=CFG.ads||[];if(!ads.length)return null;const m=ads.filter(a=>a.stations&&a.stations.some(s=>stations.includes(s)));const pool=m.length?m:ads.filter(a=>!a.stations);return pool.length?pool[Math.floor(Math.random()*pool.length)]:null;}
 const LOGO=`<svg viewBox="-6 -6 112 112" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="square"><rect x="0" y="0" width="100" height="100"/><circle cx="50" cy="50" r="50"/><path d="M0 0 L100 100 M100 0 L0 100 M50 0 L0 100 M50 0 L100 100"/></g></svg>`;
 const SIGN=`<span class="sign">${LOGO}<span><b>Ing. Antonio Sira</b><small>Creador de Metro Moro</small></span></span>`;
+function contactLine(url){const mail=(url||"").replace(/^mailto:/,"").split("?")[0];const ph=(CFG.phone||"").trim();
+  return `<span class="act">${ph?`📞 ${esc(ph)}`:""}${ph&&mail?" · ":""}${mail?`✉️ ${esc(mail)}`:""}</span>`;}
 function adHTML(a){if(!a)return"";
-  if((a.url||"").startsWith("mailto:"))return `<a class="ad brand" target="_blank" rel="noopener" href="${esc(a.url)}"><span class="bl">${LOGO}</span><span class="bt"><span class="ap">Publicidad · Ing. Antonio Sira</span><span class="at">${esc(a.title)}</span><span class="ax">${esc(a.text||"")}</span></span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;
+  if((a.url||"").startsWith("mailto:"))return `<a class="ad brand" target="_blank" rel="noopener" href="${esc(a.url)}"><span class="bl">${LOGO}</span><span class="bt"><span class="ap">Publicidad · Ing. Antonio Sira</span><span class="at">${esc(a.title)}</span><span class="ax">${esc(a.text||"")}</span>${contactLine(a.url)}</span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;
   return `<a class="ad" target="_blank" rel="noopener sponsored" href="${esc(a.url||"#")}"><span class="ae">${esc(a.emoji||"📣")}</span><span><span class="ap">Patrocinado</span><div class="at">${esc(a.title)}</div><div class="ax">${esc(a.text||"")}</div></span>${a.cta?`<span class="ac">${esc(a.cta)}</span>`:""}</a>`;}
 function metroOpen(){const d=new Date(),m=d.getHours()*60+d.getMinutes();return m>=OPEN[0]&&m<OPEN[1];}
 const statusHTML=()=>metroOpen()?`<span class="status"><i></i>Metro abierto · cierra 11:00 p. m.</span>`:`<span class="status off"><i></i>Metro cerrado · abre 5:30 a. m.</span>`;
@@ -297,30 +299,31 @@ function legendRows(){return Object.keys(LINES).map(L=>`<div class="row" data-li
 function openLine(L){curLine=L;VIEW="line";$("legend").classList.remove("on");render();setSheet("half");}
 function renderLine(){
   const L=curLine,st=lineStations(L);
-  let h=`<h2><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"};display:inline-grid;width:30px;height:30px;font-size:14px;vertical-align:-6px">${LINES[L].short}</span> ${LINES[L].name}</h2><p class="hint" style="margin-top:-4px">${ENDS[L]} · toca una estación para ver sus salidas</p>`;
+  let h=`<div class="vtop"><button class="link" data-back="1">← Inicio</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div><h2><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"};display:inline-grid;width:30px;height:30px;font-size:14px;vertical-align:-6px">${LINES[L].short}</span> ${LINES[L].name}</h2><p class="hint" style="margin-top:-4px">${ENDS[L]} · toca una estación para ver sus salidas</p>`;
   h+=`<ul class="stops" style="margin-top:6px">`+st.map(n=>`<li data-st="${esc(n)}" style="--lc:${LINES[L].color};cursor:pointer;color:var(--ink)">${esc(n)} ${[...stationLines[n]].filter(x=>x!==L).map(chip).join(" ")}</li>`).join("")+`</ul>`;
   h+=`<p class="note"><button class="link" id="lBack">← Volver</button></p>`;
   $("sc").innerHTML=h;
   $("sc").querySelectorAll("[data-st]").forEach(li=>li.onclick=()=>openStation(li.dataset.st));
-  $("lBack").onclick=()=>{curLine=null;VIEW=TO?"route":"idle";render(true);};
+  $("lBack").onclick=()=>goHome();
   if(mapReady){netOp(.2);const shp=MD.shapes[L]&&MD.shapes[L].length?MD.shapes[L]:LINES[L].paths.map(p=>p.s.map(s=>ST[s]));setData("route",fc(shp.map(s=>lineF(s,{c:LINES[L].color}))));fit(st.map(n=>ST[n]));}
 }
-$("sc").addEventListener("click",e=>{const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
+$("sc").addEventListener("click",e=>{const b=e.target.closest("[data-back]");if(b){goHome(b.dataset.back==="line");return;}const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
+function goHome(toLine){if(toLine&&curLine){VIEW="line";render();return;}curLine=null;cardStation=null;VIEW=TO?"route":"idle";render(true);if(!TO){if(ME&&mapReady)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:14.5,duration:500});else fitAll();}setSheet(TO?"half":"peek");}
 $("lgBtn").onclick=()=>{const lg=$("legend");if(!lg.innerHTML)lg.innerHTML=`<div class="lgt">Líneas del Metro</div>`+legendRows();lg.classList.toggle("on");};
 $("legend").addEventListener("click",e=>{const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
 
 // --- estación ---
-function openStation(n){if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,stPoint(n));return;}if(VIEW==="trip")return;cardStation=n;VIEW="station";render();setSheet("half");if(mapReady)map.easeTo({center:LL(ST[n]),zoom:Math.max(map.getZoom(),16),duration:500});}
+function openStation(n){if(VIEW!=="line")curLine=null;if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,stPoint(n));return;}if(VIEW==="trip")return;cardStation=n;VIEW="station";render();setSheet("half");if(mapReady)map.easeTo({center:LL(ST[n]),zoom:Math.max(map.getZoom(),16),duration:500});}
 const stPoint=n=>({lat:ST[n][0],lon:ST[n][1],name:"Estación "+n});
 function renderStation(){
   const n=cardStation,ex=MD.exits[n]?EXITS[n]:[];
-  let h=`<h2>${esc(n)} ${chips(n)}</h2><div class="btns"><button class="btn pri" id="sTo">Ir aquí</button><button class="btn" id="sFrom">Salir desde aquí</button></div>`;
+  let h=`<div class="vtop"><button class="link" data-back="${curLine?"line":"1"}">← ${curLine?LINES[curLine].name:"Inicio"}</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div><h2>${esc(n)} ${chips(n)}</h2><div class="btns"><button class="btn pri" id="sTo">Ir aquí</button><button class="btn" id="sFrom">Salir desde aquí</button></div>`;
   if(ex.length){h+=`<div class="sec">${ex.length} ${ex.length===1?"salida":"salidas"} · toca una para ir hasta ella</div>`;ex.forEach((e,i)=>h+=`<div class="row" data-go="x${esc(n)}|${i}"><span class="em">⬆️</span><div class="tx"><div class="t1">${e.name?esc(e.name):"Salida "+(i+1)}</div></div></div>`);}
   h+=adHTML(pickAd([n]));
   h+=`<p class="note"><button class="link" id="sBack">← Volver</button></p>`;
   $("sc").innerHTML=h;
   $("sTo").onclick=()=>setPoint("to",stPoint(n));$("sFrom").onclick=()=>setPoint("from",stPoint(n));
-  $("sBack").onclick=()=>{VIEW=TO?"route":"idle";render(true);};
+  $("sBack").onclick=()=>goHome(true);
 }
 
 // --- compartir ---
