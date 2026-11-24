@@ -13,6 +13,7 @@ const LINES={
  L5:{name:"Línea 5",short:"5",color:"#8E44AD",paths:[{s:["Zona Rental","Bello Monte"],fwd:"Bello Monte",back:"Zona Rental"}]},
  LT:{name:"Metro Los Teques",short:"LT",color:"#8A6A3B",paths:[{s:["Las Adjuntas","Alí Primera","Guaicaipuro","Independencia"],fwd:"Independencia",back:"Las Adjuntas"}]}
 };
+const ENDS={L1:"Propatria ↔ Palo Verde",L2:"El Silencio ↔ Las Adjuntas / Zoológico",L3:"Plaza Venezuela ↔ La Rinconada",L4:"Capuchinos ↔ Zona Rental",L5:"Zona Rental ↔ Bello Monte",LT:"Las Adjuntas ↔ Independencia"};
 const PLACES=[["Plaza Bolívar","🏛️",10.5061,-66.9146],["Panteón Nacional","🏛️",10.5112,-66.9098],["Torres de Parque Central","🏢",10.4978,-66.9008],["UCV – Ciudad Universitaria","🎓",10.4905,-66.8905],["Hospital Universitario","🏥",10.4925,-66.8930],["Bulevar de Sabana Grande","🛍️",10.4957,-66.8745],["Sambil Chacao","🛍️",10.4903,-66.8540],["Plaza Altamira","⛲",10.4965,-66.8490],["Parque del Este","🌳",10.4925,-66.8390],["CCCT","🏢",10.4835,-66.8450],["Las Mercedes","🍽️",10.4825,-66.8605],["Casco de Petare","⛪",10.4772,-66.8068],["Terminal La Bandera","🚌",10.4785,-66.9010],["Bulevar de Catia","🛍️",10.5088,-66.9405],["Zoológico de Caricuao","🦁",10.4290,-66.9860]].map(([n,e,la,lo])=>({name:n,em:e,lat:la,lon:lo}));
 const OPEN=[5*60+30,23*60]; // horario según OpenStreetMap (Mo-Su 05:30-23:00)
 const URL_BASE=location.origin+location.pathname;
@@ -207,6 +208,7 @@ function render(keepView){
   if(mapReady){setData("route",fc([]));setData("walk",fc([]));netOp(1);}
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="station")return renderStation();
+  if(VIEW==="line")return renderLine();
   if(!TO)return renderIdle(tok);
   if(!FROM){VIEW="route";$("sc").innerHTML=`<h2>${esc(TO.name)}</h2><p class="hint">¿Desde dónde sales? Activa la ubicación del teléfono o elige el punto de partida.</p><div class="btns"><button class="btn pri" id="bFrom">Elegir punto de partida</button><button class="btn" id="bGps">Usar mi ubicación</button></div>`;
     $("bFrom").onclick=()=>openPicker("from");$("bGps").onclick=()=>useGPS(true);setSheet("half");if(mapReady&&!keepView)map.easeTo({center:LL([TO.lat,TO.lon]),zoom:15});return;}
@@ -220,6 +222,7 @@ function renderIdle(tok){
   }else h+=`<div class="row"><span class="em">📍</span><div class="tx"><div class="t1">Activa tu ubicación</div><div class="t2">Así te digo cuál es tu estación más cercana.</div></div><button class="btn sm" id="bGps">Activar</button></div>`;
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m.</div></div></div>`;
   const hm=saved("home"),wk=saved("work");
+  h+=`<div class="sec">Líneas del Metro</div>`+legendRows();
   h+=`<div class="sec">Tus lugares</div>`;
   h+=`<div class="row" data-go="home"><span class="em">🏠</span><div class="tx"><div class="t1">Casa</div><div class="t2">${hm?esc(hm.name):"Toca para guardarla"}</div></div>${hm?`<button class="link" data-edit="home">Cambiar</button>`:""}</div>`;
   h+=`<div class="row" data-go="work"><span class="em">💼</span><div class="tx"><div class="t1">Trabajo</div><div class="t2">${wk?esc(wk.name):"Toca para guardarlo"}</div></div>${wk?`<button class="link" data-edit="work">Cambiar</button>`:""}</div>`;
@@ -287,6 +290,25 @@ function renderRoute(tok,keepView){
     if((w1||w2)&&VIEW==="route"){const st=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);$("sc").scrollTop=st;}
   });
 }
+
+// --- líneas ---
+let curLine=null;
+const lineStations=L=>{const out=[];for(const p of LINES[L].paths)for(const s of p.s)if(!out.includes(s))out.push(s);return out;};
+function legendRows(){return Object.keys(LINES).map(L=>`<div class="row" data-line="${L}"><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"}">${LINES[L].short==="LT"?"LT":LINES[L].short}</span><div class="tx"><div class="t1">${LINES[L].name}</div><div class="t2">${ENDS[L]} · ${lineStations(L).length} estaciones</div></div><span class="t2">›</span></div>`).join("");}
+function openLine(L){curLine=L;VIEW="line";$("legend").classList.remove("on");render();setSheet("half");}
+function renderLine(){
+  const L=curLine,st=lineStations(L);
+  let h=`<h2><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"};display:inline-grid;width:30px;height:30px;font-size:14px;vertical-align:-6px">${LINES[L].short}</span> ${LINES[L].name}</h2><p class="hint" style="margin-top:-4px">${ENDS[L]} · toca una estación para ver sus salidas</p>`;
+  h+=`<ul class="stops" style="margin-top:6px">`+st.map(n=>`<li data-st="${esc(n)}" style="--lc:${LINES[L].color};cursor:pointer;color:var(--ink)">${esc(n)} ${[...stationLines[n]].filter(x=>x!==L).map(chip).join(" ")}</li>`).join("")+`</ul>`;
+  h+=`<p class="note"><button class="link" id="lBack">← Volver</button></p>`;
+  $("sc").innerHTML=h;
+  $("sc").querySelectorAll("[data-st]").forEach(li=>li.onclick=()=>openStation(li.dataset.st));
+  $("lBack").onclick=()=>{curLine=null;VIEW=TO?"route":"idle";render(true);};
+  if(mapReady){netOp(.2);const shp=MD.shapes[L]&&MD.shapes[L].length?MD.shapes[L]:LINES[L].paths.map(p=>p.s.map(s=>ST[s]));setData("route",fc(shp.map(s=>lineF(s,{c:LINES[L].color}))));fit(st.map(n=>ST[n]));}
+}
+$("sc").addEventListener("click",e=>{const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
+$("lgBtn").onclick=()=>{const lg=$("legend");if(!lg.innerHTML)lg.innerHTML=`<div class="lgt">Líneas del Metro</div>`+legendRows();lg.classList.toggle("on");};
+$("legend").addEventListener("click",e=>{const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
 
 // --- estación ---
 function openStation(n){if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,stPoint(n));return;}if(VIEW==="trip")return;cardStation=n;VIEW="station";render();setSheet("half");if(mapReady)map.easeTo({center:LL(ST[n]),zoom:Math.max(map.getZoom(),16),duration:500});}
