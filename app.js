@@ -236,12 +236,12 @@ function marker(key,p,cls){if(!map)return;if(!p){if(markers[key]){markers[key].r
 
 // ================= PANEL INFERIOR =================
 const sheet=$("sheet");let sheetState="peek";
-const H={peek:()=>(VIEW==="route"?240:VIEW==="trip"?190:170)+($("adbar")&&$("adbar").offsetHeight||0),half:()=>Math.round(innerHeight*0.52),full:()=>Math.round(innerHeight*0.9)};
+const H={peek:()=>(VIEW==="route"?240:VIEW==="trip"?190:170)+($("adbar")&&$("adbar").offsetHeight||0),half:()=>Math.round(innerHeight*0.52),full:()=>Math.round(Math.min(innerHeight*0.9,innerHeight-(($("top")&&$("top").offsetHeight)||110)-8))};
 function sheetPx(){return H[sheetState]();}
 function setSheet(s){sheetState=s;document.documentElement.style.setProperty("--sheetH",H[s]()+"px");}
 (function drag(){let y0=null,h0=0,moved=0;const g=$("grab");
   const down=e=>{y0=e.clientY;h0=sheetPx();moved=0;sheet.classList.add("drag");g.setPointerCapture(e.pointerId);};
-  const move=e=>{if(y0==null)return;const h=Math.max(120,Math.min(innerHeight*0.92,h0+(y0-e.clientY)));moved=Math.abs(y0-e.clientY);document.documentElement.style.setProperty("--sheetH",h+"px");};
+  const move=e=>{if(y0==null)return;const h=Math.max(120,Math.min(H.full(),h0+(y0-e.clientY)));moved=Math.abs(y0-e.clientY);document.documentElement.style.setProperty("--sheetH",h+"px");};
   const up=e=>{if(y0==null)return;sheet.classList.remove("drag");const h=h0+(y0-e.clientY);y0=null;
     if(moved<6){setSheet(sheetState==="peek"?"half":sheetState==="half"?"full":"peek");return;}
     const opts=["peek","half","full"].map(k=>[k,Math.abs(H[k]()-h)]).sort((a,b)=>a[1]-b[1]);setSheet(opts[0][0]);};
