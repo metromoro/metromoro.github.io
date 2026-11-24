@@ -15,7 +15,7 @@ window.APP_CONFIG = {
     { stations: ["Altamira", "Chacao", "Miranda"], emoji: "🍔",
       title: "Tu restaurante aquí", text: "Llega a miles de personas que pasan por el este todos los días.",
       cta: "Anúnciate", url: "mailto:ingenieroantoniosira@gmail.com" },
-    { emoji: "📣", title: "Anúnciate en Metro CCS",
+    { emoji: "📣", title: "Anúnciate en Metro Moro",
       text: "Tu marca frente a quienes se mueven en metro por Caracas.",
       cta: "Más info", url: "mailto:ingenieroantoniosira@gmail.com" }
   ]
