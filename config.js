@@ -25,6 +25,7 @@ window.APP_CONFIG = {
   support: {
     pagoMovil: { banco: "", telefono: "", cedula: "" },
     binancePayId: "",
+    binanceEmail: "antoniojsirap@gmail.com",
     paypal: ""   // ej: https://paypal.me/tuusuario
   }
 };

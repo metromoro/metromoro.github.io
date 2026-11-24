@@ -585,7 +585,8 @@ function openCafe(){
   const S=CFG.support||{},pm=S.pagoMovil||{};let h="";
   const copyRow=(em,t1,val,label)=>`<div class="row"><span class="em">${em}</span><div class="tx"><div class="t1">${esc(t1)}</div><div class="t2">${esc(label||val)}</div></div><button class="btn sm" data-copy="${esc(val)}">Copiar</button></div>`;
   if(pm.telefono)h+=`<div class="sec">Pago Móvil</div>`+copyRow("🏦","Banco",pm.banco||"",pm.banco)+copyRow("📱","Teléfono",pm.telefono)+(pm.cedula?copyRow("🪪","Cédula",pm.cedula):"");
-  if(S.binancePayId)h+=`<div class="sec">Binance Pay</div>`+copyRow("🟡","Pay ID",S.binancePayId);
+  if(S.binancePayId||S.binanceEmail){h+=`<div class="sec">Binance Pay</div>`;if(S.binanceEmail)h+=copyRow("🟡","Correo de Binance",S.binanceEmail);if(S.binancePayId)h+=copyRow("🟡","Pay ID",S.binancePayId);
+    h+=`<p class="hint" style="margin:6px 0 0">En Binance: Pagar › Enviar › por correo, pega el correo y envía USDT u otra cripto.</p>`;}
   if(S.paypal)h+=`<div class="sec">PayPal</div><div class="row"><span class="em">💙</span><div class="tx"><div class="t1">PayPal</div><div class="t2">${esc(S.paypal)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${esc(S.paypal)}">Abrir</a></div>`;
   if(!h)h=`<p class="hint">Muy pronto podrás apoyar a Metro Moro desde aquí.</p>`;
   $("mlist").innerHTML=`<div class="cafe"><div class="cafe-ic">☕</div><h2 style="margin:6px 0 4px">Invítame un café</h2><p class="hint" style="margin:0 0 6px">Metro Moro es gratis y sin registro. Si te sirvió, cualquier aporte ayuda a mantenerla y mejorarla. ¡Gracias!</p></div>`+h+`<p class="note"><button class="link" id="cafeBack">← Volver al menú</button></p>`;
