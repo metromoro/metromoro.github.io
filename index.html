@@ -495,9 +495,9 @@ function render(keepView){
     if(!keepView)MAP.fit([a,b]);return;
   }
   baseLines.forEach(l=>l.opacity(.25));
-  const pts=[a,b,first.ex.ll,last.ex.ll];
+  const pts=[a,b];
   for(const g of r.legs)if(g.type==="ride"){routeLayers.push(MAP.line(pathShape(g.line,g.path),{color:LINES[g.line].color,weight:8,casing:true,z:6}));g.path.forEach(s=>pts.push(ST[s]));}
-  const first=r.legs[0],last=r.legs[r.legs.length-1];
+  const first=r.legs[0],last=r.legs[r.legs.length-1];pts.push(first.ex.ll,last.ex.ll);
   const tmp=[MAP.line([a,first.ex.ll],{color:"#1a73e8",weight:4,dashed:true,z:5}),MAP.line([last.ex.ll,b],{color:"#1a73e8",weight:4,dashed:true,z:5})];
   routeLayers.push(...tmp);
   $("result").innerHTML=stepsHTML(r);
