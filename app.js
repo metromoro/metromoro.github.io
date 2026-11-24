@@ -93,8 +93,9 @@ function route(from,to,ov,opt){opt=opt||{};
     for(const e of adj[u]||[]){const d=dist[u]+e.w;if(dist[e.to]==null||d<dist[e.to]-1e-9){dist[e.to]=d;prev[e.to]={from:u,e};}}}
   let end=null,bt=Infinity;
   for(const d of dsts)for(const L of stationLines[d.n]){const id=nid(L,d.n);if(dist[id]==null)continue;const t=dist[id]+d.w;if(t<bt){bt=t;end={id,walk:d.w,ex:d.ex};}}
-  if(!end||(direct<=bt&&!opt.force))return{walkOnly:true,total:direct,direct};
+  if(!end||(direct<=10&&direct<=bt&&!opt.force))return{walkOnly:true,total:direct,direct};
   const seq=[];let c=end.id;while(!prev[c].start){seq.unshift({to:c,...prev[c]});c=prev[c].from;}
+  if(!seq.some(x=>x.e.type==="ride")&&!opt.force)return{walkOnly:true,total:direct,direct};
   const legs=[{type:"walk",first:true,to:nodes[c].st,min:prev[c].walk,ex:prev[c].ex}];let cur=null;
   for(const s of seq){
     if(s.e.type==="ride"){
@@ -348,6 +349,7 @@ function withAlts(r,ov){
   for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n,wide:true});if(a.walkOnly||!a.legs.some(g=>g.type==="ride")||a.legs[0].to===a.legs[a.legs.length-1].from)continue;
     if(alts.some(x=>x.legs[x.legs.length-1].from===a.legs[a.legs.length-1].from))continue;alts.push(a);}
   alts.sort((a,b)=>a.total-b.total);r.alts=alts.filter(a=>a.total<=r.total+20).slice(0,r.walkOnly?2:3);
+  if(!r.walkOnly&&r.direct&&r.direct<r.total+5)r.alts.push({walkOnly:true,total:r.direct,direct:r.direct});
   r.alts.forEach(a=>a.ad=r.ad);return r;}
 function renderRoute(tok,keepView){
   VIEW="route";const a=[FROM.lat,FROM.lon],b=[TO.lat,TO.lon];const r=route(FROM,TO);
