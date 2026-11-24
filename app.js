@@ -315,6 +315,8 @@ function endTrip(){if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=nu
 function renderTrip(){
   const T=TRIP,r=T.r,n=T.seq.length,cur=T.seq[T.i],next=T.seq[T.i+1];
   const finalLeg=r.legs[r.legs.length-1];
+  if(mapReady){map.setPaintProperty("net","line-opacity",.28);map.setPaintProperty("net-case","line-opacity",.28);
+    setData("route",fc(r.legs.filter(g=>g.type==="ride").map(g=>lineF(pathShape(g.line,g.path),{c:LINES[g.line].color}))));}
   // ¿dónde se baja uno de esta línea? (último índice del tramo)
   const legEnd=k=>{let j=k;while(j+1<n&&T.seq[j+1].leg===T.seq[k].leg)j++;return j;};
   const nextLegOf=k=>T.seq[legEnd(k)+1];
