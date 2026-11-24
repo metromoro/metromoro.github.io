@@ -539,6 +539,7 @@ async function downloadMap(){
 }
 if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 
+window.MM={route,walkTable,walkRoute,ST,EXITS,LINES,nearest,bestExit};
 // ================= ARRANQUE =================
 (function start(){
   const sp=new URLSearchParams(location.search);
