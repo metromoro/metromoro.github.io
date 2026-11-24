@@ -29,6 +29,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 const clock=d=>d.toLocaleTimeString("es-VE",{hour:"numeric",minute:"2-digit"});
 const gmWalk=(a,b)=>`https://www.google.com/maps/dir/?api=1&origin=${a[0]},${a[1]}&destination=${b[0]},${b[1]}&travelmode=walking`;
 const store={get(k,d){try{const v=localStorage.getItem("mccs-"+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem("mccs-"+k,JSON.stringify(v));}catch(e){}}};
+function track(p){try{if(window.goatcounter&&goatcounter.count)goatcounter.count({path:p.slice(0,180),title:p.slice(0,180),event:true});}catch(e){}}
 function toast(msg,ms=3200){const t=$("toast");t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",ms);}
 const stationLines={};for(const L in LINES)for(const p of LINES[L].paths)for(const s of p.s)(stationLines[s]??=new Set()).add(L);
 const isTransfer=n=>stationLines[n].size>1||["Capitolio","El Silencio","Zona Rental","Plaza Venezuela"].includes(n);
@@ -46,7 +47,7 @@ function showAd(stations,fixed){const key=(stations||[]).join("|");if(key===adKe
   const paint=a=>{const bar=$("adbar");if(!a){bar.innerHTML="";bar.style.display="none";return;}bar.style.display="";
     const mail=(a.url||"").startsWith("mailto:")?(a.url.replace(/^mailto:/,"").split("?")[0]):"";const ph=(CFG.phone||"").trim();
     const sub=[a.text,ph&&"📞 "+ph,mail&&"✉️ "+mail].filter(Boolean);
-    bar.innerHTML=`<a class="adb" target="_blank" rel="noopener sponsored" href="${esc(a.url||"#")}"><span class="adm">${(a.url||"").startsWith("mailto:")?"M":esc(a.emoji||"📣")}</span><span class="adt"><span class="ad1"><i>Publicidad</i>${esc(a.title)}</span><span class="ad2">${esc(sub.join(" · "))}</span></span>${a.cta?`<span class="adc">${esc(a.cta)}</span>`:""}</a>`;};
+    bar.onclick=()=>track("anuncio: "+a.title);bar.innerHTML=`<a class="adb" target="_blank" rel="noopener sponsored" href="${esc(a.url||"#")}"><span class="adm">${(a.url||"").startsWith("mailto:")?"M":esc(a.emoji||"📣")}</span><span class="adt"><span class="ad1"><i>Publicidad</i>${esc(a.title)}</span><span class="ad2">${esc(sub.join(" · "))}</span></span>${a.cta?`<span class="adc">${esc(a.cta)}</span>`:""}</a>`;};
   paint(fixed||pickAd(stations||[]));
   if((CFG.ads||[]).length>1)adTimer=setInterval(()=>paint(pickAd(stations||[])),9000);}
 function adHTML(a){if(!a)return"";
@@ -225,7 +226,8 @@ function overlay(){
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
 function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";applyTheme();store.set("mapStyle",k);map.setStyle(styleURL(k),{diff:false});}
-function padding(){return{top:($("top").offsetHeight||120)+20,bottom:Math.min(sheetPx(),innerHeight*0.6)+30,left:40,right:40};}
+const DESK=()=>matchMedia("(min-width:900px)").matches;
+function padding(){if(DESK())return{top:40,bottom:40,left:470,right:60};return{top:($("top").offsetHeight||120)+20,bottom:Math.min(sheetPx(),innerHeight*0.6)+30,left:40,right:40};}
 function fit(pts){if(!mapReady||!pts.length)return;const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));map.fitBounds(b,{padding:padding(),maxZoom:16.5,duration:500});}
 function fitAll(){fit(Object.keys(ST).filter(n=>!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));}
 const markers={};
@@ -344,11 +346,14 @@ function routeHTML(r){
       h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">${lines.map(L=>`<span class="chip${LINES[L].dark?" y":""}" style="background:${LINES[L].color}">${LINES[L].short}</span>`).join("")}</span><div class="tx"><div class="t1">${fmt(a.total)} · ${esc(f.to)} → ${esc(l.from)}</div><div class="t2">${fmt(f.min)} a pie al inicio · ${fmt(l.min)} a pie al final</div></div><span class="t2">›</span></div>`;});}
   h+=`<div class="btns"><button class="btn sm" data-save="home">🏠 Guardar como Casa</button><button class="btn sm" data-save="work">💼 Guardar como Trabajo</button></div>`;
   showAd(r.walkOnly?[]:r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]),r.ad);
+  h+=`<button class="rep" data-report="ruta">⚠️ ¿Algo está mal en esta ruta? Repórtalo</button>`;
   h+=`<p class="note">Tiempos estimados: tren ≈30 km/h, 3 min de espera, 4–6 min por transbordo. No refleja estaciones cerradas ni fallas del servicio.</p>`;
   return h;
 }
+let lastTracked="";
 function bindRoute(r){
-  const t=$("bTrip");if(t)t.onclick=()=>startTrip(r);
+  const t=$("bTrip");if(t)t.onclick=()=>startTrip(r);bindReport();
+  if(TO&&TO.name!==lastTracked){lastTracked=TO.name;track("destino: "+TO.name);}
   $("bShare").onclick=()=>share(r);$("bFrom2").onclick=()=>openPicker("from");
   $("sc").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>setPoint(b.dataset.save,{...TO}));
   $("sc").querySelectorAll("[data-alt]").forEach(b=>b.onclick=()=>{const i=+b.dataset.alt,a=r.alts[i];a.alts=[r,...r.alts.filter((_,j)=>j!==i)];r.alts=null;$("sc").scrollTop=0;showRoute(a,renderTok,false,true);});
@@ -441,14 +446,15 @@ function renderStation(){
   let h=`<div class="vtop"><button class="link" data-back="${curLine?"line":"1"}">← ${curLine?LINES[curLine].name:"Inicio"}</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div><h2>${esc(n)} ${chips(n)}</h2><div class="btns"><button class="btn pri" id="sTo">Ir aquí</button><button class="btn" id="sFrom">Salir desde aquí</button></div>`;
   if(ex.length){h+=`<div class="sec">${ex.length} ${ex.length===1?"salida":"salidas"} · toca una para ir hasta ella</div>`;ex.forEach((e,i)=>h+=`<div class="row" data-go="x${esc(n)}|${i}"><span class="em">⬆️</span><div class="tx"><div class="t1">${e.name?esc(e.name):"Salida "+(i+1)}</div>${e.side?`<div class="t2">Lado ${e.side}</div>`:""}</div></div>`);}
   showAd([n]);
+  h+=`<button class="rep" data-report="estacion">⚠️ ¿Falta una salida o hay un error? Repórtalo</button>`;
   h+=`<p class="note"><button class="link" id="sBack">← Volver</button></p>`;
-  $("sc").innerHTML=h;
+  $("sc").innerHTML=h;bindReport();track("estación: "+n);
   $("sTo").onclick=()=>setPoint("to",stPoint(n));$("sFrom").onclick=()=>setPoint("from",stPoint(n));
   $("sBack").onclick=()=>goHome(true);
 }
 
 // --- compartir ---
-async function share(r){
+async function share(r){track("compartir");
   const u=new URL(URL_BASE);u.searchParams.set("to",`${TO.lat.toFixed(5)},${TO.lon.toFixed(5)}`);u.searchParams.set("tn",TO.name);
   if(FROM&&!FROM.live){u.searchParams.set("from",`${FROM.lat.toFixed(5)},${FROM.lon.toFixed(5)}`);u.searchParams.set("fn",FROM.name);}
   let txt=`Cómo llegar a ${TO.name} en Metro (${fmt(r.total)}):`;
@@ -462,7 +468,7 @@ async function share(r){
 // --- modo en el tren ---
 function startTrip(r){
   const seq=[];r.legs.forEach((g,li)=>{if(g.type==="ride")g.path.forEach((s,i)=>{if(i===0&&seq.length&&seq[seq.length-1].st===s){seq[seq.length-1].xfer=true;return;}seq.push({st:s,leg:li,line:g.line});});});
-  TRIP={r,seq,i:0};VIEW="trip";setSheet("half");render();
+  track("iniciar viaje");TRIP={r,seq,i:0};VIEW="trip";setSheet("half");render();
   try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(l=>{if(TRIP)TRIP.lock=l;}).catch(()=>{});}catch(e){}
 }
 function endTrip(){marker("train",null);if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;VIEW=TO?"route":"idle";render(true);}
@@ -557,6 +563,7 @@ $("gps").onclick=()=>useGPS(true);
 function openMenu(){
   let h=`<div class="row" data-m="dl"><span class="em">📶</span><div class="tx"><div class="t1">Guardar el mapa para usar sin señal</div><div class="t2">Descarga el mapa de Caracas (unos 10–20 MB). Mejor con Wi-Fi.${store.get("offline",0)?" · Ya lo guardaste":""}</div></div></div>`;
   if(!navigator.standalone)h+=`<div class="row" data-m="ios"><span class="em">📲</span><div class="tx"><div class="t1">Instalar como app</div><div class="t2">iPhone: Safari › Compartir › «Agregar a pantalla de inicio»</div></div></div>`;
+  h+=`<div class="row" data-m="rep"><span class="em">⚠️</span><div class="tx"><div class="t1">Reportar un problema</div><div class="t2">Una salida que falta, una ruta mal, una estación cerrada…</div></div></div>`;
   h+=`<div class="row" data-m="cafe"><span class="em">☕</span><div class="tx"><div class="t1">Invítame un café</div><div class="t2">Apoya Metro Moro para que siga gratis</div></div></div>`;
   h+=`<div class="sec">Tipo de mapa</div>`;
   for(const k in STYLES)h+=`<div class="row" data-m="style:${k}"><span class="em">${k===mapStyle?"✅":"🗺️"}</span><div class="tx"><div class="t1">${STYLES[k][0]}</div><div class="t2">${STYLES[k][2]}</div></div></div>`;
@@ -573,6 +580,7 @@ $("mbtn").onclick=openMenu;$("mclose").onclick=()=>$("menu").classList.remove("o
 $("mlist").onclick=e=>{const r=e.target.closest("[data-m]");if(!r)return;const m=r.dataset.m;
   if(m.startsWith("style:")){setMapStyle(m.slice(6));openMenu();toast("Mapa: "+STYLES[mapStyle][0]);return;}
   if(m==="cafe"){$("menu").classList.remove("on");openCafe();return;}
+  if(m==="rep"){openReport("");return;}
   if(m==="dl"){$("menu").classList.remove("on");downloadMap();}
   if(m==="ios"){$("menu").classList.remove("on");$("iosTip").style.display="block";$("welcome").classList.add("on");}
   if(m==="net"){$("menu").classList.remove("on");clearDest();fitAll();}
@@ -581,7 +589,7 @@ $("mlist").onclick=e=>{const r=e.target.closest("[data-m]");if(!r)return;const m
 };
 
 // ================= INVÍTAME UN CAFÉ =================
-function openCafe(){
+function openCafe(){track("café");
   const S=CFG.support||{},pm=S.pagoMovil||{};let h="";
   const copyRow=(em,t1,val,label)=>`<div class="row"><span class="em">${em}</span><div class="tx"><div class="t1">${esc(t1)}</div><div class="t2">${esc(label||val)}</div></div><button class="btn sm" data-copy="${esc(val)}">Copiar</button></div>`;
   if(pm.telefono)h+=`<div class="sec">Pago Móvil</div>`+copyRow("🏦","Banco",pm.banco||"",pm.banco)+copyRow("📱","Teléfono",pm.telefono)+(pm.cedula?copyRow("🪪","Cédula",pm.cedula):"");
@@ -592,6 +600,45 @@ function openCafe(){
   $("mlist").innerHTML=`<div class="cafe"><div class="cafe-ic">☕</div><h2 style="margin:6px 0 4px">Invítame un café</h2><p class="hint" style="margin:0 0 6px">Metro Moro es gratis y sin registro. Si te sirvió, cualquier aporte ayuda a mantenerla y mejorarla. ¡Gracias!</p></div>`+h+`<p class="note"><button class="link" id="cafeBack">← Volver al menú</button></p>`;
   $("menu").classList.add("on");$("cafeBack").onclick=openMenu;
   $("mlist").querySelectorAll("[data-copy]").forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.copy);toast("Copiado: "+b.dataset.copy);}catch(e){toast(b.dataset.copy,5000);}});
+}
+
+// ================= REPORTAR UN PROBLEMA =================
+const REP_KINDS=["Falta una salida","Salida mal ubicada o con otro nombre","La ruta está mal","Estación cerrada o falla del servicio","Error en la app","Otra cosa"];
+function repContext(){const L=[];
+  if(VIEW==="station"&&cardStation)L.push("Estación: "+cardStation);
+  if(TO)L.push("Destino: "+TO.name+" ("+TO.lat.toFixed(5)+", "+TO.lon.toFixed(5)+")");
+  if(FROM)L.push("Desde: "+FROM.name+(FROM.live?"":" ("+FROM.lat.toFixed(5)+", "+FROM.lon.toFixed(5)+")"));
+  if(mapReady){const c=map.getCenter();L.push("Mapa en: "+c.lat.toFixed(5)+", "+c.lng.toFixed(5)+" · zoom "+map.getZoom().toFixed(1));}
+  L.push("Pantalla: "+(DESK()?"PC":"teléfono")+" · "+(navigator.userAgent.match(/iPhone|Android|Windows|Mac OS X|Linux/)||["?"])[0]);
+  return L.join("\n");}
+function bindReport(){$("sc").querySelectorAll("[data-report]").forEach(b=>b.onclick=()=>openReport(b.dataset.report==="estacion"?REP_KINDS[0]:REP_KINDS[2]));}
+function openReport(kind){
+  const ctx=repContext();let sel=kind||"";
+  const mail=SIGN_MAIL;
+  let h=`<h2 style="margin:14px 0 4px">Reportar un problema</h2><p class="hint" style="margin:0 0 10px">Cuéntanos qué viste y lo corregimos. Tu reporte le llega a Metro Moro.</p>`;
+  h+=`<div class="sec">¿Qué pasó?</div><div class="rchips">${REP_KINDS.map(k=>`<button class="rchip${k===sel?" on":""}" data-k="${esc(k)}">${esc(k)}</button>`).join("")}</div>`;
+  h+=`<textarea class="rin" id="rMsg" placeholder="Ej.: En Chacao hay una salida en la Av. Francisco de Miranda frente al Sambil que no aparece."></textarea>`;
+  h+=`<input class="rin" id="rWho" placeholder="Tu nombre o teléfono (opcional, por si hay que preguntarte algo)">`;
+  h+=`<div class="sec">Se envía junto con</div><div class="rctx">${esc(ctx)}</div>`;
+  h+=`<button class="btn pri" id="rSend" style="width:100%">Enviar reporte</button>`;
+  h+=`<p class="note"><button class="link" id="rBack">← Volver</button></p>`;
+  $("mlist").innerHTML=h;$("menu").classList.add("on");
+  $("mlist").querySelectorAll(".rchip").forEach(b=>b.onclick=()=>{sel=b.dataset.k;$("mlist").querySelectorAll(".rchip").forEach(x=>x.classList.toggle("on",x===b));});
+  $("rBack").onclick=()=>{$("menu").classList.remove("on");};
+  $("rSend").onclick=async()=>{
+    const msg=$("rMsg").value.trim(),who=$("rWho").value.trim();
+    if(!sel&&!msg){toast("Elige qué pasó o escribe un comentario.");return;}
+    const body={_subject:"Metro Moro · Reporte: "+(sel||"Comentario"),Tipo:sel||"—",Mensaje:msg||"—",Contacto:who||"—",Contexto:ctx,_template:"table",_captcha:"false"};
+    const btn=$("rSend");btn.disabled=true;btn.textContent="Enviando…";track("reporte: "+(sel||"comentario"));
+    let ok=false;
+    if(mail){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),12000);
+      const r=await fetch("https://formsubmit.co/ajax/"+mail,{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify(body),signal:c.signal});clearTimeout(t);
+      const j=await r.json().catch(()=>({}));ok=r.ok&&String(j.success)!=="false";}catch(e){}}
+    if(ok){$("menu").classList.remove("on");toast("¡Gracias! Recibimos tu reporte.",4000);return;}
+    btn.disabled=false;btn.textContent="Enviar reporte";
+    if(mail){location.href="mailto:"+mail+"?subject="+encodeURIComponent(body._subject)+"&body="+encodeURIComponent((sel?"Tipo: "+sel+"\n":"")+(msg?msg+"\n":"")+(who?"Contacto: "+who+"\n":"")+"\n"+ctx);toast("Se abrió tu correo para enviarlo.");}
+    else toast("No se pudo enviar ahora. Intenta más tarde.");
+  };
 }
 
 // ================= SIN SEÑAL =================
