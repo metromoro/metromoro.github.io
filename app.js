@@ -151,7 +151,16 @@ async function walkRoute(a,b){
 }
 
 // ================= MAPA =================
-const STYLES={claro:["Claro","positron","Suave y limpio"],colorido:["Colorido","liberty","Con edificios y parques"],brillante:["Brillante","bright","Calles muy marcadas"],oscuro:["Oscuro","dark","Para la noche"]};
+const STYLES={claro:["Claro","positron","Suave y limpio"],colorido:["Colorido","liberty","Con edificios y parques"],brillante:["Brillante","bright","Calles muy marcadas"],satelite:["Satélite","satelite","Fotos aéreas con calles"],oscuro:["Oscuro","dark","Para la noche"]};
+// vista satelital: imágenes de Esri World Imagery + capas de calles y nombres encima
+const ESRI="https://server.arcgisonline.com/ArcGIS/rest/services/";
+const SAT_STYLE={version:8,glyphs:"https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  sources:{sat:{type:"raster",tiles:[ESRI+"World_Imagery/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19,attribution:"Imágenes © Esri, Maxar, Earthstar Geographics"},
+    roads:{type:"raster",tiles:[ESRI+"Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19},
+    places:{type:"raster",tiles:[ESRI+"Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19}},
+  layers:[{id:"sat",type:"raster",source:"sat"},{id:"roads",type:"raster",source:"roads",paint:{"raster-opacity":0.85}},{id:"places",type:"raster",source:"places"}]};
+const styleURL=k=>k==="satelite"?SAT_STYLE:"https://tiles.openfreemap.org/styles/"+STYLES[k][1];
+const LBLDARK=()=>DARK||mapStyle==="satelite";
 let mapStyle=store.get("mapStyle","claro");if(!STYLES[mapStyle])mapStyle="claro";
 let DARK=mapStyle==="oscuro";
 function applyTheme(){document.documentElement.classList.toggle("dark",DARK);const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=DARK?"#17181c":"#d7261e";}
@@ -165,7 +174,7 @@ function netOp(v){if(map&&map.getLayer("net")){map.setPaintProperty("net","line-
 function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
-  map=new maplibregl.Map({container:"map",style:"https://tiles.openfreemap.org/styles/"+STYLES[mapStyle][1],center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
+  map=new maplibregl.Map({container:"map",style:styleURL(mapStyle),center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
   map.touchZoomRotate.disableRotation();
   map.on("styledata",()=>{if(!map.getSource("net")&&map.isStyleLoaded()){overlay();if(mapReady)render(true);}});
   map.on("style.load",()=>{if(!map.getSource("net")){overlay();if(mapReady)render(true);}});
@@ -202,20 +211,20 @@ function overlay(){
       map.addImage("mexit",g.getImageData(0,0,64,64),{pixelRatio:2});}
     map.addSource("rex",{type:"geojson",data:fc([])});
     const W=(a,b)=>["interpolate",["linear"],["zoom"],10,a,16,b];
-    map.addLayer({id:"net-case",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":DARK?"#17181c":"#fff","line-width":W(4,12)}});
+    map.addLayer({id:"net-case",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":LBLDARK()?"#17181c":"#fff","line-width":W(4,12)}});
     map.addLayer({id:"net",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(2.5,8)}});
     map.addLayer({id:"walk",type:"line",source:"walk",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#1a73e8","line-width":W(3,6),"line-dasharray":[0.2,1.8]}});
     map.addLayer({id:"route-case",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#fff","line-width":W(7,16)}});
     map.addLayer({id:"route",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(5,12)}});
     map.addLayer({id:"ex",type:"symbol",source:"ex",minzoom:14.6,layout:{"icon-image":"mexit","icon-size":["interpolate",["linear"],["zoom"],14.6,0.7,17,1.05],"icon-allow-overlap":true,"icon-ignore-placement":true}});
-    map.addLayer({id:"ex-lbl",type:"symbol",source:"ex",minzoom:16.3,layout:{"text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.5],"text-anchor":"top","text-optional":true},paint:{"text-color":DARK?"#eee":"#222","text-halo-color":DARK?"#000":"#fff","text-halo-width":1.5}});
+    map.addLayer({id:"ex-lbl",type:"symbol",source:"ex",minzoom:16.3,layout:{"text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.5],"text-anchor":"top","text-optional":true},paint:{"text-color":LBLDARK()?"#eee":"#222","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":1.5}});
     map.addLayer({id:"rex",type:"circle",source:"rex",paint:{"circle-radius":8,"circle-color":["case",["==",["get","k"],"in"],"#1aa260","#d7261e"],"circle-stroke-color":"#fff","circle-stroke-width":3}});
     map.addLayer({id:"st",type:"circle",source:"st",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,["case",["==",["get","x"],1],4,3],15,["case",["==",["get","x"],1],9,7]],"circle-color":["case",["==",["get","x"],1],"#fff",["get","c"]],"circle-stroke-color":["case",["==",["get","x"],1],"#16171b","#fff"],"circle-stroke-width":["case",["==",["get","x"],1],2.5,2]}});
-    map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":DARK?"#fff":"#16171b","text-halo-color":DARK?"#000":"#fff","text-halo-width":2}});
-    map.addLayer({id:"rex-lbl",type:"symbol",source:"rex",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.3],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"in"],"#137a46","#b01f18"],"text-halo-color":DARK?"#000":"#fff","text-halo-width":2}});
+    map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":LBLDARK()?"#fff":"#16171b","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
+    map.addLayer({id:"rex-lbl",type:"symbol",source:"rex",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.3],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"in"],"#137a46","#b01f18"],"text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
-function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";applyTheme();store.set("mapStyle",k);map.setStyle("https://tiles.openfreemap.org/styles/"+STYLES[k][1],{diff:false});}
+function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";applyTheme();store.set("mapStyle",k);map.setStyle(styleURL(k),{diff:false});}
 function padding(){return{top:($("top").offsetHeight||120)+20,bottom:Math.min(sheetPx(),innerHeight*0.6)+30,left:40,right:40};}
 function fit(pts){if(!mapReady||!pts.length)return;const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));map.fitBounds(b,{padding:padding(),maxZoom:16.5,duration:500});}
 function fitAll(){fit(Object.keys(ST).filter(n=>!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));}
