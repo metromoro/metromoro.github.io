@@ -333,7 +333,7 @@ function bindRoute(r){
 function withAlts(r,ov){
   const ends=ov&&ov.d?Object.keys(ov.d):Object.keys(ST).map(n=>({n,...bestExit([TO.lat,TO.lon],n)})).sort((a,b)=>a.w-b.w).slice(0,5).map(x=>x.n);
   const chosen=r.walkOnly?null:r.legs[r.legs.length-1].from;const alts=[];
-  for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n});if(a.walkOnly)continue;
+  for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n});if(a.walkOnly||!a.legs.some(g=>g.type==="ride")||a.legs[0].to===a.legs[a.legs.length-1].from)continue;
     if(alts.some(x=>x.legs[x.legs.length-1].from===a.legs[a.legs.length-1].from))continue;alts.push(a);}
   alts.sort((a,b)=>a.total-b.total);r.alts=alts.filter(a=>a.total<=r.total+20).slice(0,r.walkOnly?2:3);
   r.alts.forEach(a=>a.ad=r.ad);return r;}
