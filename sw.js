@@ -1,5 +1,5 @@
 // Metro Moro · funciona sin señal
-const V="mccs-v29";
+const V="mccs-v30";
 const SHELL=["./","index.html","app.js","data.js","config.js","manifest.webmanifest","icon-180.png","icon-192.png","icon-512.png",
  "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js","https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>{})))));self.skipWaiting();});
