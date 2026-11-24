@@ -306,9 +306,11 @@ function renderIdle(tok){
   h+=`<div class="row" data-go="work"><span class="em">💼</span><div class="tx"><div class="t1">Trabajo</div><div class="t2">${wk?esc(wk.name):"Toca para guardarlo"}</div></div>${wk?`<button class="link" data-edit="work">Cambiar</button>`:""}</div>`;
   const rc=recents();if(rc.length){h+=`<div class="sec">Recientes</div>`;rc.slice(0,5).forEach((r,i)=>h+=`<div class="row" data-go="r${i}"><span class="em">🕘</span><div class="tx"><div class="t1">${esc(r.name)}</div></div></div>`);}
   showAd(FROM?[nearest([FROM.lat,FROM.lon]).n]:[]);
+  h+=`<button class="cafeLink" id="cafeIdle">☕ ¿Te sirvió Metro Moro? Invítame un café</button>`;
   h+=`<p class="note">Estaciones y salidas: © colaboradores de OpenStreetMap. Tiempos estimados; no refleja estaciones cerradas ni fallas del servicio.</p>`;
   $("sc").innerHTML=h;setSheet(sheetState==="full"?"half":sheetState);
   const g=$("bGps");if(g)g.onclick=()=>useGPS(true);
+  const cf=$("cafeIdle");if(cf)cf.onclick=openCafe;
 }
 $("sc").addEventListener("click",e=>{
   const ed=e.target.closest("[data-edit]");if(ed){e.stopPropagation();openPicker(ed.dataset.edit);return;}
@@ -555,6 +557,7 @@ $("gps").onclick=()=>useGPS(true);
 function openMenu(){
   let h=`<div class="row" data-m="dl"><span class="em">📶</span><div class="tx"><div class="t1">Guardar el mapa para usar sin señal</div><div class="t2">Descarga el mapa de Caracas (unos 10–20 MB). Mejor con Wi-Fi.${store.get("offline",0)?" · Ya lo guardaste":""}</div></div></div>`;
   if(!navigator.standalone)h+=`<div class="row" data-m="ios"><span class="em">📲</span><div class="tx"><div class="t1">Instalar como app</div><div class="t2">iPhone: Safari › Compartir › «Agregar a pantalla de inicio»</div></div></div>`;
+  h+=`<div class="row" data-m="cafe"><span class="em">☕</span><div class="tx"><div class="t1">Invítame un café</div><div class="t2">Apoya Metro Moro para que siga gratis</div></div></div>`;
   h+=`<div class="sec">Tipo de mapa</div>`;
   for(const k in STYLES)h+=`<div class="row" data-m="style:${k}"><span class="em">${k===mapStyle?"✅":"🗺️"}</span><div class="tx"><div class="t1">${STYLES[k][0]}</div><div class="t2">${STYLES[k][2]}</div></div></div>`;
   h+=`<div class="sec">Más</div>`;
@@ -569,12 +572,26 @@ function openMenu(){
 $("mbtn").onclick=openMenu;$("mclose").onclick=()=>$("menu").classList.remove("on");
 $("mlist").onclick=e=>{const r=e.target.closest("[data-m]");if(!r)return;const m=r.dataset.m;
   if(m.startsWith("style:")){setMapStyle(m.slice(6));openMenu();toast("Mapa: "+STYLES[mapStyle][0]);return;}
+  if(m==="cafe"){$("menu").classList.remove("on");openCafe();return;}
   if(m==="dl"){$("menu").classList.remove("on");downloadMap();}
   if(m==="ios"){$("menu").classList.remove("on");$("iosTip").style.display="block";$("welcome").classList.add("on");}
   if(m==="net"){$("menu").classList.remove("on");clearDest();fitAll();}
   if(m==="ads")location.href=CONTACT+"?subject="+encodeURIComponent("Publicidad en Metro Moro");
   if(m==="clr"){store.set("home",null);store.set("work",null);store.set("recents",[]);toast("Listo, borrado.");$("menu").classList.remove("on");render(true);}
 };
+
+// ================= INVÍTAME UN CAFÉ =================
+function openCafe(){
+  const S=CFG.support||{},pm=S.pagoMovil||{};let h="";
+  const copyRow=(em,t1,val,label)=>`<div class="row"><span class="em">${em}</span><div class="tx"><div class="t1">${esc(t1)}</div><div class="t2">${esc(label||val)}</div></div><button class="btn sm" data-copy="${esc(val)}">Copiar</button></div>`;
+  if(pm.telefono)h+=`<div class="sec">Pago Móvil</div>`+copyRow("🏦","Banco",pm.banco||"",pm.banco)+copyRow("📱","Teléfono",pm.telefono)+(pm.cedula?copyRow("🪪","Cédula",pm.cedula):"");
+  if(S.binancePayId)h+=`<div class="sec">Binance Pay</div>`+copyRow("🟡","Pay ID",S.binancePayId);
+  if(S.paypal)h+=`<div class="sec">PayPal</div><div class="row"><span class="em">💙</span><div class="tx"><div class="t1">PayPal</div><div class="t2">${esc(S.paypal)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${esc(S.paypal)}">Abrir</a></div>`;
+  if(!h)h=`<p class="hint">Muy pronto podrás apoyar a Metro Moro desde aquí.</p>`;
+  $("mlist").innerHTML=`<div class="cafe"><div class="cafe-ic">☕</div><h2 style="margin:6px 0 4px">Invítame un café</h2><p class="hint" style="margin:0 0 6px">Metro Moro es gratis y sin registro. Si te sirvió, cualquier aporte ayuda a mantenerla y mejorarla. ¡Gracias!</p></div>`+h+`<p class="note"><button class="link" id="cafeBack">← Volver al menú</button></p>`;
+  $("menu").classList.add("on");$("cafeBack").onclick=openMenu;
+  $("mlist").querySelectorAll("[data-copy]").forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.copy);toast("Copiado: "+b.dataset.copy);}catch(e){toast(b.dataset.copy,5000);}});
+}
 
 // ================= SIN SEÑAL =================
 async function downloadMap(){

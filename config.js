@@ -18,5 +18,13 @@ window.APP_CONFIG = {
     { emoji: "📣", title: "Anúnciate en Metro Moro",
       text: "Tu marca frente a quienes se mueven en metro por Caracas.",
       cta: "Más info", url: "mailto:ingantoniosira@gmail.com" }
-  ]
+  ],
+
+  // ====== INVÍTAME UN CAFÉ ======
+  // Llena solo los que uses; los vacíos no se muestran.
+  support: {
+    pagoMovil: { banco: "", telefono: "", cedula: "" },
+    binancePayId: "",
+    paypal: ""   // ej: https://paypal.me/tuusuario
+  }
 };
