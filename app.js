@@ -94,15 +94,19 @@ const nearest=p=>{let b=null,bw=Infinity;for(const n in ST){const e=bestExit(p,n
 
 // tiempos reales a pie (por calles) hasta TODAS las salidas de las estaciones candidatas, en una sola consulta por extremo
 const tableCache={};
+// el servidor de rutas a pie rechaza consultas simultáneas: van en fila, con reintento
+let osrmQ=Promise.resolve();
+function osrm(url){const run=async()=>{for(let i=0;i<3;i++){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),8000);const r=await fetch(url,{signal:c.signal});clearTimeout(t);
+  if(r.ok){const j=await r.json();if(j.code==="Ok")return j;}}catch(e){}await new Promise(z=>setTimeout(z,700*(i+1)));}return null;};
+  const p=osrmQ.then(run);osrmQ=p.catch(()=>{});return p;}
 async function walkTable(p,toStations){ // toStations: p -> salidas ; si no, salidas -> p
   const cand=Object.keys(ST).map(n=>({n,...bestExit(p,n)})).sort((x,y)=>x.w-y.w).filter((x,i)=>i<3||(i<7&&x.w<=40)).map(x=>x.n);
   const ex=[];cand.forEach(n=>EXITS[n].forEach(e=>ex.push({n,e})));
   const key=(toStations?"o":"d")+p.join()+cand.join();if(tableCache[key])return tableCache[key];
   const pts=toStations?[p,...ex.map(x=>x.e.ll)]:[...ex.map(x=>x.e.ll),p];
   const q=toStations?"sources=0":"destinations="+(pts.length-1);
-  try{const c=new AbortController();setTimeout(()=>c.abort(),7000);
-    const j=await (await fetch(`https://routing.openstreetmap.de/routed-foot/table/v1/foot/${pts.map(x=>x[1]+","+x[0]).join(";")}?${q}`,{signal:c.signal})).json();
-    if(!j.durations)return null;const out={};
+  try{const j=await osrm(`https://routing.openstreetmap.de/routed-foot/table/v1/foot/${pts.map(x=>x[1]+","+x[0]).join(";")}?${q}`);
+    if(!j||!j.durations)return null;const out={};
     ex.forEach((x,i)=>{const sec=toStations?j.durations[0][i+1]:j.durations[i][0];if(sec==null)return;const m=sec/60;if(!out[x.n]||m<out[x.n].w)out[x.n]={w:m,ex:x.e};});
     return tableCache[key]=out;
   }catch(e){return null;}
@@ -111,9 +115,8 @@ async function walkTable(p,toStations){ // toStations: p -> salidas ; si no, sal
 const walkCache={};
 async function walkRoute(a,b){
   const key=a.join()+";"+b.join();if(walkCache[key])return walkCache[key];
-  try{const c=new AbortController();setTimeout(()=>c.abort(),6000);
-    const res=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`,{signal:c.signal});
-    const j=await res.json();const rt=j.routes&&j.routes[0];
+  try{const j=await osrm(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`);
+    const rt=j&&j.routes&&j.routes[0];
     if(rt)return walkCache[key]={path:rt.geometry.coordinates.map(([x,y])=>[y,x]),min:rt.duration/60,m:rt.distance};
   }catch(e){}
   return null;
