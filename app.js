@@ -11,9 +11,13 @@ const LINES={
  L3:{name:"Línea 3",short:"3",color:"#0067B1",paths:[{s:["Plaza Venezuela","Ciudad Universitaria","Los Símbolos","La Bandera","El Valle","Los Jardines","Coche","Mercado","La Rinconada"],fwd:"La Rinconada",back:"Plaza Venezuela"}]},
  L4:{name:"Línea 4",short:"4",color:"#F2B705",dark:true,paths:[{s:["Capuchinos","Teatros","Nuevo Circo","Parque Central","Zona Rental"],fwd:"Zona Rental",back:"Capuchinos"}]},
  L5:{name:"Línea 5",short:"5",color:"#8E44AD",paths:[{s:["Zona Rental","Bello Monte"],fwd:"Bello Monte",back:"Zona Rental"}]},
+ V1:{name:"Metro de Valencia",short:"V",color:"#00A3E0",city:"val",paths:[{s:["Monumental","Las Ferias","Palotal","Santa Rosa","Michelena","Lara","Cedeño","Rafael Urdaneta","Francisco de Miranda"],fwd:"Francisco de Miranda",back:"Monumental"}]},
  LT:{name:"Metro Los Teques",short:"LT",color:"#8A6A3B",paths:[{s:["Las Adjuntas","Alí Primera","Guaicaipuro","Independencia"],fwd:"Independencia",back:"Las Adjuntas"}]}
 };
-const ENDS={L1:"Propatria ↔ Palo Verde",L2:"El Silencio ↔ Las Adjuntas / Zoológico",L3:"Plaza Venezuela ↔ La Rinconada",L4:"Capuchinos ↔ Zona Rental",L5:"Zona Rental ↔ Bello Monte",LT:"Las Adjuntas ↔ Independencia"};
+const ENDS={L1:"Propatria ↔ Palo Verde",L2:"El Silencio ↔ Las Adjuntas / Zoológico",L3:"Plaza Venezuela ↔ La Rinconada",L4:"Capuchinos ↔ Zona Rental",L5:"Zona Rental ↔ Bello Monte",LT:"Las Adjuntas ↔ Independencia",V1:"Monumental ↔ Francisco de Miranda"};
+const CITIES={ccs:{name:"Caracas",center:[-66.89,10.49],zoom:11.6,bbox:[-67.10,10.30,-66.70,10.56]},val:{name:"Valencia",center:[-68.003,10.175],zoom:12.6,bbox:[-68.15,10.05,-67.85,10.30]}};
+function cityAt(lat,lon){return Math.hypot(lat-10.175,lon+68.003)<Math.hypot(lat-10.49,lon+66.89)?"val":"ccs";}
+function curCity(){if(map&&mapReady){const c=map.getCenter();return cityAt(c.lat,c.lng);}if(ME)return cityAt(ME.lat,ME.lon);return"ccs";}
 const PLACES=[["Plaza Bolívar","🏛️",10.50600,-66.91463],["Panteón Nacional","🏛️",10.51319,-66.91255],["Torres de Parque Central","🏢",10.4978,-66.9008],["UCV – Ciudad Universitaria","🎓",10.49018,-66.89166],["Hospital Universitario","🏥",10.49048,-66.89380],["Bulevar de Sabana Grande","🛍️",10.49264,-66.87397],["Centro Sambil","🛍️",10.48903,-66.85425],["CCCT – Ciudad Tamanaco","🏢",10.48535,-66.85503],["Las Mercedes","🍽️",10.48036,-66.85553],["Plaza Altamira (Francia)","⛲",10.49602,-66.84888],["Parque del Este","🌳",10.49254,-66.83917],["Centro Comercial Líder","🛍️",10.48615,-66.82090],["Casco de Petare","⛪",10.47727,-66.80868],["Terminal La Bandera","🚌",10.47587,-66.89931],["Bulevar de Catia","🛍️",10.50788,-66.94793],["Zoológico de Caricuao","🦁",10.4290,-66.9860]].map(([n,e,la,lo])=>({name:n,em:e,lat:la,lon:lo}));
 const OPEN=[5*60+30,23*60]; // horario según OpenStreetMap (Mo-Su 05:30-23:00)
 const URL_BASE=location.origin+location.pathname;
@@ -176,6 +180,7 @@ function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
   map=new maplibregl.Map({container:"map",style:styleURL(mapStyle),center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
+  {let lc="";map.on("moveend",()=>{const c=curCity();if(c!==lc){lc=c;drawQuick();}});}
   map.touchZoomRotate.disableRotation();
   map.on("styledata",()=>{if(!map.getSource("net")&&map.isStyleLoaded()){overlay();if(mapReady)render(true);}});
   map.on("style.load",()=>{if(!map.getSource("net")){overlay();if(mapReady)render(true);}});
@@ -267,10 +272,12 @@ function drawQuick(){
   const q=[];const h=saved("home"),w=saved("work");
   q.push(`<button class="qc" data-q="home">🏠 Casa${h?"":" <small>Agregar</small>"}</button>`);
   q.push(`<button class="qc" data-q="work">💼 Trabajo${w?"":" <small>Agregar</small>"}</button>`);
+  {const oc=curCity()==="ccs"?"val":"ccs";q.push(`<button class="qc" data-q="city:${oc}">🏙️ Ir a ${CITIES[oc].name}</button>`);}
   recents().slice(0,5).forEach((r,i)=>q.push(`<button class="qc" data-q="r${i}">🕘 ${esc(r.name.split(",")[0])}</button>`));
   $("quick").innerHTML=q.join("");
 }
 $("quick").onclick=e=>{const b=e.target.closest(".qc");if(!b)return;const k=b.dataset.q;
+  if(k.startsWith("city:")){const c=CITIES[k.slice(5)];if(mapReady)map.flyTo({center:c.center,zoom:c.zoom,duration:900});setTimeout(drawQuick,1000);return;}
   if(k==="home"||k==="work"){const s=saved(k);if(s)setPoint("to",{...s});else openPicker(k);return;}
   const r=recents()[+k.slice(1)];if(r)setPoint("to",{...r});};
 
@@ -508,11 +515,11 @@ $("q").oninput=()=>{searchResults=[];drawList();clearTimeout(searchTimer);const 
 $("q").onkeydown=e=>{if(e.key==="Enter"){clearTimeout(searchTimer);geoSearch($("q").value.trim());}};
 async function geoSearch(q){if(!q)return;let out=[],fail=false;
   try{const c=new AbortController();setTimeout(()=>c.abort(),7000);
-    const bias=ME?`&lat=${ME.lat}&lon=${ME.lon}`:"&lat=10.49&lon=-66.88";
-    const res=await fetch(`https://photon.komoot.io/api/?limit=8&bbox=-67.10,10.30,-66.70,10.56${bias}&q=${encodeURIComponent(q)}`,{signal:c.signal});
+    const CB=CITIES[curCity()],bb=CB.bbox;const bias=ME&&cityAt(ME.lat,ME.lon)===curCity()?`&lat=${ME.lat}&lon=${ME.lon}`:`&lat=${CB.center[1]}&lon=${CB.center[0]}`;
+    const res=await fetch(`https://photon.komoot.io/api/?limit=8&bbox=${bb.join(",")}${bias}&q=${encodeURIComponent(q)}`,{signal:c.signal});
     out=(await res.json()).features.map(f=>{const p=f.properties,[lo,la]=f.geometry.coordinates;const sub=[p.street&&(p.street+(p.housenumber?" "+p.housenumber:"")),p.district||p.locality,p.city].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i&&x!==p.name).slice(0,2).join(", ");return{name:p.name||p.street||"Lugar",sub,lat:la,lon:lo};});
   }catch(e){fail=true;}
-  if(!out.length&&!fail){try{const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=ve&viewbox=-67.10,10.56,-66.70,10.30&bounded=1&accept-language=es&q=${encodeURIComponent(q)}`);
+  if(!out.length&&!fail){try{const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=ve&viewbox=${bb[0]},${bb[3]},${bb[2]},${bb[1]}&bounded=1&accept-language=es&q=${encodeURIComponent(q)}`);
     out=(await res.json()).map(x=>({name:x.display_name.split(",")[0],sub:x.display_name.split(",").slice(1,3).join(","),lat:+x.lat,lon:+x.lon}));}catch(e){}}
   if($("q").value.trim()!==q)return;searchResults=out;drawList(fail?"offline":"done");}
 function drawList(state){
