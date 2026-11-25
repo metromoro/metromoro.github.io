@@ -115,7 +115,7 @@ function route(from,to,ov,opt){opt=opt||{};
 
 // ================= BUS (Metrobús y otras rutas, datos de OpenStreetMap) =================
 function dec5(s){let i=0,la=0,lo=0;const o=[];while(i<s.length){for(const k of[0,1]){let b,sh=0,r=0;do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5;}while(b>=32);const d=r&1?~(r>>1):r>>1;if(k)lo+=d;else la+=d;}o.push([la/1e5,lo/1e5]);}return o;}
-const BUSES=[];(function(){for(const [ref,name,op,sp,sn,lp] of(window.BUS_DATA||[])){const pts=dec5(sp),nm=(sn||"").split("|");if(pts.length<2)continue;BUSES.push({ref,name,op,stops:pts.map((p,i)=>({ll:p,name:nm[i]||"parada"})),line:lp?dec5(lp):[]});}})();
+const BUSES=[];(function(){for(const [ref,name,op,sp,sn,lp] of(window.BUS_DATA||[])){const pts=dec5(sp),nm=(sn||"").split("|");if(pts.length<2)continue;const st=[];pts.forEach((p,i)=>{const n=nm[i]||"parada",pv=st[st.length-1];if(pv&&pv.name===n&&hav(pv.ll,p)<0.15)return;st.push({ll:p,name:n});});if(st.length<2)continue;BUSES.push({ref,name,op,stops:st,line:lp?dec5(lp):[]});}})();
 const BUS_SPEED=14,BUS_WAIT=12,BUS_COLOR="#E87722";
 const busTitle=b=>b.op?b.name.split(":")[0]:"Metrobús "+b.ref;
 const busChip=b=>`<span class="chip" style="background:${BUS_COLOR}">🚌 ${esc(b.op?(b.ref||"Bus"):b.ref)}</span>`;
