@@ -11,7 +11,7 @@ const LINES={
  L3:{name:"Línea 3",short:"3",color:"#0067B1",paths:[{s:["Plaza Venezuela","Ciudad Universitaria","Los Símbolos","La Bandera","El Valle","Los Jardines","Coche","Mercado","La Rinconada"],fwd:"La Rinconada",back:"Plaza Venezuela"}]},
  L4:{name:"Línea 4",short:"4",color:"#F2B705",dark:true,paths:[{s:["Capuchinos","Teatros","Nuevo Circo","Parque Central","Zona Rental"],fwd:"Zona Rental",back:"Capuchinos"}]},
  L5:{name:"Línea 5",short:"5",color:"#8E44AD",paths:[{s:["Zona Rental","Bello Monte"],fwd:"Bello Monte",back:"Zona Rental"}]},
- V1:{name:"Metro de Valencia",short:"V",color:"#00A3E0",city:"val",paths:[{s:["Monumental","Las Ferias","Palotal","Santa Rosa","Michelena","Lara","Cedeño","Rafael Urdaneta","Francisco de Miranda"],fwd:"Francisco de Miranda",back:"Monumental"}]},
+ V1:{name:"Línea 1 de Valencia",short:"V",color:"#00A3E0",city:"val",paths:[{s:["Monumental","Las Ferias","Palotal","Santa Rosa","Michelena","Lara","Cedeño","Rafael Urdaneta","Francisco de Miranda"],fwd:"Francisco de Miranda",back:"Monumental"}]},
  LT:{name:"Metro Los Teques",short:"LT",color:"#8A6A3B",paths:[{s:["Las Adjuntas","Alí Primera","Guaicaipuro","Independencia"],fwd:"Independencia",back:"Las Adjuntas"}]}
 };
 const ENDS={L1:"Propatria ↔ Palo Verde",L2:"El Silencio ↔ Las Adjuntas / Zoológico",L3:"Plaza Venezuela ↔ La Rinconada",L4:"Capuchinos ↔ Zona Rental",L5:"Zona Rental ↔ Bello Monte",LT:"Las Adjuntas ↔ Independencia",V1:"Monumental ↔ Francisco de Miranda"};
