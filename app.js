@@ -17,7 +17,7 @@ const ENDS={L1:"Propatria ↔ Palo Verde",L2:"El Silencio ↔ Las Adjuntas / Zoo
 const PLACES=[["Plaza Bolívar","🏛️",10.50600,-66.91463],["Panteón Nacional","🏛️",10.51319,-66.91255],["Torres de Parque Central","🏢",10.4978,-66.9008],["UCV – Ciudad Universitaria","🎓",10.49018,-66.89166],["Hospital Universitario","🏥",10.49048,-66.89380],["Bulevar de Sabana Grande","🛍️",10.49264,-66.87397],["Centro Sambil","🛍️",10.48903,-66.85425],["CCCT – Ciudad Tamanaco","🏢",10.48535,-66.85503],["Las Mercedes","🍽️",10.48036,-66.85553],["Plaza Altamira (Francia)","⛲",10.49602,-66.84888],["Parque del Este","🌳",10.49254,-66.83917],["Centro Comercial Líder","🛍️",10.48615,-66.82090],["Casco de Petare","⛪",10.47727,-66.80868],["Terminal La Bandera","🚌",10.47587,-66.89931],["Bulevar de Catia","🛍️",10.50788,-66.94793],["Zoológico de Caricuao","🦁",10.4290,-66.9860]].map(([n,e,la,lo])=>({name:n,em:e,lat:la,lon:lo}));
 const OPEN=[5*60+30,23*60]; // horario según OpenStreetMap (Mo-Su 05:30-23:00)
 const URL_BASE=location.origin+location.pathname;
-const CONTACT=(CFG.ads||[]).map(a=>a.url||"").find(u=>u.startsWith("mailto:"))||"";
+const CONTACT=CFG.contact?("mailto:"+CFG.contact):((CFG.ads||[]).map(a=>a.url||"").find(u=>u.startsWith("mailto:"))||"");
 
 // ================= UTILIDADES =================
 const $=id=>document.getElementById(id);
@@ -570,7 +570,6 @@ function openMenu(){
   h+=`<div class="sec">Más</div>`;
   h+=`<div class="row" data-m="net"><span class="em">🗺️</span><div class="tx"><div class="t1">Ver toda la red</div><div class="t2">Las 5 líneas y el Metro Los Teques</div></div></div>`;
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m. (según OpenStreetMap)</div></div></div>`;
-  if(CONTACT)h+=`<div class="row" data-m="ads"><span class="em">📣</span><div class="tx"><div class="t1">Anuncia tu negocio aquí</div><div class="t2">Escríbenos por correo</div></div></div>`;
   h+=`<div class="row" data-m="clr"><span class="em">🧹</span><div class="tx"><div class="t1">Borrar Casa, Trabajo y recientes</div></div></div>`;
   h+=`<div class="credit">${SIGN}</div>`;
   h+=`<p class="note">Mapa: OpenFreeMap · © OpenMapTiles · © colaboradores de OpenStreetMap. Estaciones y salidas de OpenStreetMap; si ves un error, avísanos.</p>`;
