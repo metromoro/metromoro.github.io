@@ -146,7 +146,7 @@ function busOptions(from,to){if(!BUSES.length)return[];const fp=[from.lat,from.l
   opts.sort((x,y)=>x.total-y.total);const seen=new Set();return opts.filter(o=>{const k=o.legs.map(g=>g.type==="bus"?"b"+g.b.ref+g.to:g.type==="ride"?g.line+g.to:"").join();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,3);}
 function addBus(r){if(!TO||!FROM)return r;const bo=busOptions(FROM,TO);if(!bo.length)return r;
   if(r.walkOnly&&r.direct<=15)return r;
-  const best=bo[0];if(best.total<r.total-5){const main=best;main.alts=[r,...(r.alts||[]),...bo.slice(1)].filter(x=>x!==main);r.alts=null;return main;}
+  const best=bo[0];if(best.total<r.total-5){const main=best;main.alts=[r,...(r.alts||[]),...bo.slice(1)].filter(x=>x!==main&&x.total<=main.total+30).sort((x,y)=>x.total-y.total).slice(0,4);r.alts=null;return main;}
   r.alts=[...(r.alts||[]),...bo.filter(o=>o.total<=r.total+25)].sort((x,y)=>x.total-y.total).slice(0,5);return r;}
 const nearest=p=>{let b=null,bw=Infinity;for(const n in ST){const e=bestExit(p,n);if(e.w<bw){bw=e.w;b={n,...e};}}return b;};
 
@@ -444,8 +444,8 @@ function showRoute(r,tok,keepView,final){
   Promise.all([walkRoute(a,first.ex.ll),walkRoute(last.ex.ll,b)]).then(([w1,w2])=>{
     if(tok!==renderTok)return;
     setData("walk",fc([lineF(w1?w1.path:[a,first.ex.ll]),lineF(w2?w2.path:[last.ex.ll,b]),...mids]));
-    let ch=false;if(w1&&!first.m){first.m=w1.m;if(!final){r.total+=w1.min-first.min;first.min=w1.min;}ch=true;}
-    if(w2&&!last.m){last.m=w2.m;if(!final){r.total+=w2.min-last.min;last.min=w2.min;}ch=true;}
+    let ch=false;if(w1&&!first.m){first.m=w1.m;if(!final||first.kind==="bus"){r.total+=w1.min-first.min;first.min=w1.min;}ch=true;}
+    if(w2&&!last.m){last.m=w2.m;if(!final||last.kind==="bus"){r.total+=w2.min-last.min;last.min=w2.min;}ch=true;}
     if(ch&&VIEW==="route"){const s2=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);$("sc").scrollTop=s2;}
   });
 }
