@@ -92,6 +92,18 @@ h2{font-size:20px;margin:2px 0 10px}
 .status i{width:8px;height:8px;border-radius:50%;background:#1aa260}
 .status.off i{background:#c33}
 /* modo en el tren */
+.offr{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#fff4e5;color:#7a4300;border-radius:14px;padding:10px 12px;margin:0 0 10px;font-weight:600;font-size:14px}
+html.dark .offr{background:#3a2a12;color:#ffd59a}
+.mefix.hd::before{content:"";position:absolute;left:50%;top:50%;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:20px solid rgba(26,115,232,.55);transform:translate(-50%,-100%) rotate(var(--hd));transform-origin:50% 100%}
+.done{text-align:center;margin:6px 0 8px}.done .dh{font-size:44px;line-height:1}.done h2{margin:6px 0 0}
+.dstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.dstats div{background:var(--soft);border-radius:14px;padding:10px;text-align:center}.dstats b{display:block;font-size:18px}.dstats span{font-size:12px;color:var(--mut)}
+.stars{display:flex;justify-content:center;gap:6px;margin:4px 0 12px}.stars button{border:0;background:none;font-size:38px;color:#d6d7db;line-height:1;padding:2px}.stars button.on{color:#f5a623}
+.modechip{border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;margin:0 0 8px}.modechip span{opacity:.6}
+#modePop{position:fixed;top:calc(64px + var(--top));right:12px;z-index:30;width:min(300px,calc(100vw - 24px));background:var(--bg);border-radius:16px;box-shadow:var(--sh);padding:10px;display:none}
+#modePop.on{display:block}
+#modePop .mrow{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;color:var(--ink);text-align:left;padding:10px 8px;border-radius:12px;font:inherit}
+#modePop .mrow.on{background:var(--soft)}#modePop .mi{font-size:22px;width:30px;text-align:center}#modePop .mt{flex:1;display:flex;flex-direction:column}#modePop .mt small{color:var(--mut);font-size:12px}#modePop .ok{color:var(--acc);font-weight:800}
+@media(min-width:900px){#modePop{left:300px;right:auto;top:76px}}
 .modes{display:flex;gap:6px;margin:2px 0 12px}
 .modes button{flex:1;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:9px 4px;font-size:14px;font-weight:700}
 .modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
@@ -208,10 +220,12 @@ textarea.rin{min-height:110px;resize:vertical}
 <div id="top">
   <div class="bar">
     <button class="search" id="search" aria-label="Buscar destino"><span class="logo">M</span><span id="stext" class="ph">¿A dónde vas?</span><span id="clr" role="button" aria-label="Quitar destino">✕</span></button>
+    <button class="ibtn" id="modeBtn" aria-label="Cómo quieres viajar">⚡</button>
     <button class="ibtn" id="mbtn" aria-label="Menú">☰</button>
   </div>
   <div class="quick" id="quick"></div>
 </div>
+<div id="modePop"></div>
 
 <button id="gps" aria-label="Mi ubicación">➤</button>
 <button id="lgBtn" aria-label="Ver líneas del Metro"><i style="background:#E2231A"></i><i style="background:#00965E"></i><i style="background:#0067B1"></i><i style="background:#F2B705"></i><i style="background:#8E44AD"></i> Líneas</button>
@@ -242,11 +256,11 @@ textarea.rin{min-height:110px;resize:vertical}
 
 <div id="toast"></div>
 
-<script src="config.js?v=38"></script>
-<script src="data.js?v=38"></script>
-<script src="bus.js?v=38"></script>
+<script src="config.js?v=41"></script>
+<script src="data.js?v=41"></script>
+<script src="bus.js?v=41"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=38"></script>
+<script src="app.js?v=41"></script>
 <script data-goatcounter="https://metromoro.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

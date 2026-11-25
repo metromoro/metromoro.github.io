@@ -150,7 +150,11 @@ let MODE=store.get("mode","mix");if(!["mix","metro","bus"].includes(MODE))MODE="
 function applyMode(r){if(MODE==="metro")return r;
   if(MODE==="bus"){const bo=busOnly(FROM,TO);if(!bo.length)return{noBus:true,walkOnly:true,total:r.direct||r.total,direct:r.direct||r.total,legs:[]};const m=bo[0];m.alts=bo.slice(1);return m;}
   return addBus(r);}
-const modesHTML=()=>`<div class="modes">${[["mix","⚡ Mejor ruta"],["metro","🚇 Metro"],["bus","🚌 Bus"]].map(([k,t])=>`<button data-mode="${k}" class="${MODE===k?"on":""}">${t}</button>`).join("")}</div>`;
+const MODES={mix:["⚡","Mixto","Metro, bus y a pie: lo más rápido"],metro:["🚇","Metro","Solo Metro y caminar"],bus:["🚌","Bus","Solo Metrobús y otras rutas de bus"]};
+const modesHTML=()=>`<button class="modechip" data-openmode="1">${MODES[MODE][0]} ${MODES[MODE][1]} <span>▾</span></button>`;
+function setMode(k){MODE=k;store.set("mode",k);track("modo: "+k);const b=$("modeBtn");if(b)b.textContent=MODES[k][0];closeModePop();if(TO){$("sc").scrollTop=0;render(true);}else toast(`Viajarás en: ${MODES[k][1]}`);}
+function openModePop(){const p=$("modePop");p.innerHTML=`<div class="lgt">¿Cómo quieres viajar?</div>`+Object.entries(MODES).map(([k,v])=>`<button class="mrow${k===MODE?" on":""}" data-setmode="${k}"><span class="mi">${v[0]}</span><span class="mt"><b>${v[1]}</b><small>${v[2]}</small></span>${k===MODE?"<span class=\"ok\">✓</span>":""}</button>`).join("");p.classList.add("on");}
+function closeModePop(){const p=$("modePop");if(p)p.classList.remove("on");}
 function addBus(r){if(!TO||!FROM)return r;const bo=busOptions(FROM,TO);if(!bo.length)return r;
   if(r.walkOnly&&r.direct<=15)return r;
   const best=bo[0];if(best.total<r.total-5){const main=best;main.alts=[r,...(r.alts||[]),...bo.slice(1)].filter(x=>x!==main&&x.total<=main.total+30).sort((x,y)=>x.total-y.total).slice(0,4);r.alts=null;return main;}
@@ -267,6 +271,9 @@ function overlay(){
     map.addLayer({id:"route",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(5,12)}});
     map.addLayer({id:"ex",type:"symbol",source:"ex",minzoom:14.6,layout:{"icon-image":"mexit","icon-size":["interpolate",["linear"],["zoom"],14.6,0.7,17,1.05],"icon-allow-overlap":true,"icon-ignore-placement":true}});
     map.addLayer({id:"ex-lbl",type:"symbol",source:"ex",minzoom:16.3,layout:{"text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.5],"text-anchor":"top","text-optional":true},paint:{"text-color":LBLDARK()?"#eee":"#222","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":1.5}});
+    map.addSource("bst",{type:"geojson",data:fc([])});
+    map.addLayer({id:"bst",type:"circle",source:"bst",paint:{"circle-radius":["interpolate",["linear"],["zoom"],11,3,16,6],"circle-color":"#fff","circle-stroke-color":"#E87722","circle-stroke-width":2.5}});
+    map.addLayer({id:"bst-lbl",type:"symbol",source:"bst",minzoom:14.5,layout:{"text-field":["get","n"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.1],"text-anchor":"top"},paint:{"text-color":"#a14d0f","text-halo-color":"#fff","text-halo-width":1.5}});
     map.addLayer({id:"rex",type:"circle",source:"rex",paint:{"circle-radius":8,"circle-color":["case",["==",["get","k"],"in"],"#1aa260","#d7261e"],"circle-stroke-color":"#fff","circle-stroke-width":3}});
     map.addLayer({id:"st",type:"circle",source:"st",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,["case",["==",["get","x"],1],4,3],15,["case",["==",["get","x"],1],9,7]],"circle-color":["case",["==",["get","x"],1],"#fff",["get","c"]],"circle-stroke-color":["case",["==",["get","x"],1],"#16171b","#fff"],"circle-stroke-width":["case",["==",["get","x"],1],2.5,2]}});
     map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":LBLDARK()?"#fff":"#16171b","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
@@ -331,11 +338,14 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));netOp(1);}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));netOp(1);}
   if(VIEW!=="place")marker("place",null);
   if(VIEW==="trip")return renderTrip();
+  if(VIEW==="tripend")return renderTripEnd();
   if(VIEW==="station")return renderStation();
   if(VIEW==="line")return renderLine();
+  if(VIEW==="buses")return renderBuses();
+  if(VIEW==="bus")return renderBus();
   if(VIEW==="place")return renderPlace();
   if(!TO)return renderIdle(tok);
   if(!FROM){VIEW="route";$("sc").innerHTML=`<h2>${esc(TO.name)}</h2><p class="hint">¿Desde dónde sales? Activa la ubicación del teléfono o elige el punto de partida.</p><div class="btns"><button class="btn pri" id="bFrom">Elegir punto de partida</button><button class="btn" id="bGps">Usar mi ubicación</button></div>`;
@@ -353,6 +363,7 @@ function renderIdle(tok){
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m.</div></div></div>`;
   const hm=saved("home"),wk=saved("work");
   h+=`<div class="sec">Líneas del Metro</div>`+legendRows();
+  if(BUSES.length)h+=`<div class="sec">Bus</div><div class="row" data-buses="1" style="cursor:pointer"><span class="lg" style="background:${BUS_COLOR};color:#fff">🚌</span><div class="tx"><div class="t1">Rutas de bus</div><div class="t2">${BUSES.length} rutas · Metrobús y otras</div></div><span class="t2">›</span></div>`;
   h+=`<div class="sec">Tus lugares</div>`;
   h+=`<div class="row" data-go="home"><span class="em">🏠</span><div class="tx"><div class="t1">Casa</div><div class="t2">${hm?esc(hm.name):"Toca para guardarla"}</div></div>${hm?`<button class="link" data-edit="home">Cambiar</button>`:""}</div>`;
   h+=`<div class="row" data-go="work"><span class="em">💼</span><div class="tx"><div class="t1">Trabajo</div><div class="t2">${wk?esc(wk.name):"Toca para guardarlo"}</div></div>${wk?`<button class="link" data-edit="work">Cambiar</button>`:""}</div>`;
@@ -410,7 +421,7 @@ let lastTracked="";
 function bindRoute(r){
   const t=$("bTrip");if(t)t.onclick=()=>startTrip(r);bindReport();
   if(TO&&TO.name!==lastTracked){lastTracked=TO.name;track("destino: "+TO.name);}
-  $("sc").querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{MODE=b.dataset.mode;store.set("mode",MODE);track("modo: "+MODE);$("sc").scrollTop=0;render(true);});
+  $("sc").querySelectorAll("[data-openmode]").forEach(b=>b.onclick=e=>{e.stopPropagation();openModePop();});
   if($("bShare"))$("bShare").onclick=()=>share(r);if($("bFrom2"))$("bFrom2").onclick=()=>openPicker("from");if(r.noBus)return;
   $("sc").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>setPoint(b.dataset.save,{...TO}));
   $("sc").querySelectorAll("[data-alt]").forEach(b=>b.onclick=()=>{const i=+b.dataset.alt,a=r.alts[i];a.alts=[r,...r.alts.filter((_,j)=>j!==i)];r.alts=null;$("sc").scrollTop=0;showRoute(a,renderTok,false,true);});
@@ -463,6 +474,27 @@ function showRoute(r,tok,keepView,final){if(r.noBus){$("sc").innerHTML=routeHTML
 let curLine=null;
 const lineStations=L=>{const out=[];for(const p of LINES[L].paths)for(const s of p.s)if(!out.includes(s))out.push(s);return out;};
 function legendRows(){return Object.keys(LINES).map(L=>`<div class="row" data-line="${L}"><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"}">${LINES[L].short==="LT"?"LT":LINES[L].short}</span><div class="tx"><div class="t1">${LINES[L].name}</div><div class="t2">${ENDS[L]} · ${lineStations(L).length} estaciones</div></div><span class="t2">›</span></div>`).join("");}
+let curBus=null,busQ="";
+const busRowsHTML=q=>{const n=norm(q);return BUSES.map((b,i)=>({b,i})).filter(({b})=>!n||norm(b.ref+" "+b.name+" "+b.stops.map(s=>s.name).join(" ")).includes(n)).map(({b,i})=>`<div class="row" data-bus="${i}"><span class="lg" style="background:${BUS_COLOR};color:#fff;min-width:30px;width:auto;padding:0 6px;font-size:12px">${esc(b.ref||"Bus")}</span><div class="tx"><div class="t1">${esc(b.op?b.name:"Metrobús "+b.name.replace(/^MB\s*\S+:\s*/,""))}</div><div class="t2">${esc(b.op||"Metrobús")} · ${b.stops.length} paradas</div></div><span class="t2">›</span></div>`).join("")||`<p class="hint">No encontré rutas con «${esc(q)}».</p>`;};
+function openBuses(){VIEW="buses";$("legend").classList.remove("on");render();setSheet("full");}
+function openBus(i){curBus=+i;VIEW="bus";$("legend").classList.remove("on");render();setSheet("half");}
+function renderBuses(){
+  let h=`<div class="vtop"><button class="link" data-back="1">← Inicio</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div><h2>🚌 Rutas de bus</h2><p class="hint" style="margin-top:-4px">${BUSES.length} rutas de Caracas: Metrobús y otras. Toca una para verla en el mapa.</p>`;
+  h+=`<input class="rin" id="busQ" placeholder="Busca por número, zona o parada (ej. 203, El Hatillo)" value="${esc(busQ)}">`;
+  h+=`<div id="busList">${busRowsHTML(busQ)}</div><p class="note">Rutas de OpenStreetMap. El Metrobús suele tener pocas unidades y horarios irregulares.</p>`;
+  $("sc").innerHTML=h;const q=$("busQ");q.oninput=()=>{busQ=q.value;$("busList").innerHTML=busRowsHTML(busQ);};
+  $("busList").onclick=e=>{const r=e.target.closest("[data-bus]");if(r)openBus(r.dataset.bus);};
+  if(mapReady){netOp(.25);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:BUS_COLOR}))));fitAll("ccs");}
+}
+function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuses();}
+  let h=`<div class="vtop"><button class="link" id="bBack">← Rutas de bus</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div>`;
+  h+=`<h2><span class="lg" style="background:${BUS_COLOR};color:#fff;display:inline-grid;min-width:30px;height:30px;padding:0 6px;font-size:13px;vertical-align:-6px">${esc(b.ref||"Bus")}</span> ${esc(b.op?b.name:"Metrobús "+b.name.replace(/^MB\s*\S+:\s*/,""))}</h2><p class="hint" style="margin-top:-4px">${esc(b.op||"Metrobús · C.A. Metro de Caracas")} · ${b.stops.length} paradas · servicio irregular</p>`;
+  h+=`<ul class="stops" style="margin-top:6px">`+b.stops.map((s,k)=>`<li data-bs="${k}" style="--lc:${BUS_COLOR};cursor:pointer;color:var(--ink)">${esc(s.name)}</li>`).join("")+`</ul>`;
+  h+=`<p class="note">Toca una parada para ir allá.</p>`;
+  $("sc").innerHTML=h;$("bBack").onclick=()=>{VIEW="buses";render();setSheet("full");};
+  $("sc").querySelectorAll("[data-bs]").forEach(li=>li.onclick=()=>{const s=b.stops[+li.dataset.bs];setPoint("to",{lat:s.ll[0],lon:s.ll[1],name:"Parada "+s.name});});
+  if(mapReady){netOp(.25);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:BUS_COLOR})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
+}
 function openLine(L){curLine=L;VIEW="line";$("legend").classList.remove("on");render();setSheet("half");}
 function renderLine(){
   const L=curLine,st=lineStations(L);
@@ -474,10 +506,13 @@ function renderLine(){
   $("lBack").onclick=()=>goHome();
   if(mapReady){netOp(.2);const shp=MD.shapes[L]&&MD.shapes[L].length?MD.shapes[L]:LINES[L].paths.map(p=>p.s.map(s=>ST[s]));setData("route",fc(shp.map(s=>lineF(s,{c:LINES[L].color}))));fit(st.map(n=>ST[n]));}
 }
-$("sc").addEventListener("click",e=>{const b=e.target.closest("[data-back]");if(b){goHome(b.dataset.back==="line");return;}const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
+$("sc").addEventListener("click",e=>{if(e.target.closest("[data-buses]")){openBuses();return;}const b=e.target.closest("[data-back]");if(b){goHome(b.dataset.back==="line");return;}const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
 function goHome(toLine){marker("place",null);PLACE=null;if(toLine&&curLine){VIEW="line";render();return;}curLine=null;cardStation=null;VIEW=TO?"route":"idle";render(true);if(!TO){if(ME&&mapReady)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:14.5,duration:500});else fitAll();}setSheet(TO?"half":"peek");}
-$("lgBtn").onclick=()=>{const lg=$("legend");if(!lg.innerHTML)lg.innerHTML=`<div class="lgt">Líneas del Metro</div>`+legendRows();lg.classList.toggle("on");};
-$("legend").addEventListener("click",e=>{const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);});
+$("lgBtn").onclick=()=>{const lg=$("legend");if(!lg.innerHTML)lg.innerHTML=`<div class="lgt">Líneas del Metro</div>`+legendRows()+(BUSES.length?`<div class="lgt" style="margin-top:10px">Bus</div><div class="row" data-buses="1"><span class="lg" style="background:${BUS_COLOR};color:#fff">🚌</span><div class="tx"><div class="t1">Rutas de bus</div><div class="t2">${BUSES.length} rutas · Metrobús y otras</div></div><span class="t2">›</span></div>`:"");lg.classList.toggle("on");};
+$("legend").addEventListener("click",e=>{const r=e.target.closest("[data-line]");if(r)openLine(r.dataset.line);if(e.target.closest("[data-buses]"))openBuses();});
+$("modeBtn").textContent=MODES[MODE][0];$("modeBtn").onclick=e=>{e.stopPropagation();const p=$("modePop");p.classList.contains("on")?closeModePop():openModePop();};
+$("modePop").addEventListener("click",e=>{const b=e.target.closest("[data-setmode]");if(b)setMode(b.dataset.setmode);});
+document.addEventListener("click",e=>{if(!e.target.closest("#modePop")&&!e.target.closest("#modeBtn"))closeModePop();});
 
 // --- lugar tocado en el mapa ---
 let PLACE=null;
@@ -536,13 +571,42 @@ function projFrac(s,p){if(s.length<2)return{d:s.length?hav(s[0],p):Infinity,f:0}
 function startTrip(r){
   const seq=[];r.legs.forEach((g,li)=>{if(g.type==="ride")g.path.forEach((s,i)=>{if(i===0&&seq.length&&seq[seq.length-1].st===s){seq[seq.length-1].xfer=true;return;}seq.push({st:s,leg:li,line:g.line});});});
   const legs=r.legs.map(g=>{const shape=legShape(g);return{g,shape,km:plen(shape)};});
-  track("iniciar viaje");TRIP={r,seq,legs,li:0,frac:0,i:0,follow:true,lastDraw:0};VIEW="trip";setSheet("half");useGPS(false);render();
+  track("iniciar viaje");TRIP={r,seq,legs,li:0,frac:0,i:0,follow:true,lastDraw:0,t0:Date.now(),off:0,to:TO.name,km:legs.reduce((s,l)=>s+l.km,0)};VIEW="trip";setSheet("half");useGPS(false);render();
+  toast(`¡Vamos! ${tripStep(r.legs[0]).t}`,3500);if(navigator.vibrate)navigator.vibrate(40);
   try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(l=>{if(TRIP)TRIP.lock=l;}).catch(()=>{});}catch(e){}
+}
+let DONE=null;
+function finishTrip(){const T=TRIP;if(!T)return;marker("train",null);if(T.lock)try{T.lock.release();}catch(e){}
+  DONE={to:T.to,real:(Date.now()-T.t0)/60000,est:T.r.total,km:T.km,mode:MODE,legs:T.r.legs.map(g=>g.type==="ride"?LINES[g.line].name:g.type==="bus"?busTitle(g.b):"").filter(Boolean),stars:0,tags:[]};
+  TRIP=null;VIEW="tripend";track("viaje terminado");if(navigator.vibrate)navigator.vibrate([80,60,80]);setSheet("full");render();}
+const FB_TAGS=["Todo bien 👌","La salida no era","El bus no pasó","Falla en el Metro","Tardó más de lo que decía","Me perdí en un paso"];
+function renderTripEnd(){const D=DONE;if(!D){VIEW=TO?"route":"idle";return render();}
+  const kmTxt=x=>x<1?Math.round(x*100)*10+" m":x.toFixed(1).replace(".",",")+" km";
+  let h=`<div class="done"><div class="dh">🎉</div><h2>¡Llegaste${D.to?" a "+esc(D.to):""}!</h2></div>`;
+  h+=`<div class="dstats"><div><b>${fmt(D.real)}</b><span>tu viaje</span></div><div><b>${fmt(D.est)}</b><span>estimado</span></div><div><b>${kmTxt(D.km)}</b><span>recorrido</span></div></div>`;
+  if(D.legs.length)h+=`<p class="hint" style="text-align:center;margin:-4px 0 10px">Fuiste en ${esc([...new Set(D.legs)].join(" + "))}</p>`;
+  h+=`<div class="sec" style="text-align:center">¿Cómo te fue?</div><div class="stars">${[1,2,3,4,5].map(n=>`<button data-star="${n}" class="${n<=D.stars?"on":""}" aria-label="${n} estrellas">★</button>`).join("")}</div>`;
+  h+=`<div class="rchips">${FB_TAGS.map(t=>`<button class="rchip${D.tags.includes(t)?" on":""}" data-ftag="${esc(t)}">${esc(t)}</button>`).join("")}</div>`;
+  h+=`<textarea class="rin" id="fbTxt" placeholder="¿Algo que mejorar? (opcional)"></textarea>`;
+  h+=`<button class="btn pri" id="fbSend" style="width:100%">Enviar opinión</button>`;
+  h+=`<div class="btns" style="margin-top:10px"><button class="btn" id="fbShare">📲 Recomendar Metro Moro</button><button class="btn" id="fbHome">Volver al inicio</button></div>`;
+  $("sc").innerHTML=h;
+  $("sc").querySelectorAll("[data-star]").forEach(b=>b.onclick=()=>{D.stars=+b.dataset.star;$("sc").querySelectorAll("[data-star]").forEach(x=>x.classList.toggle("on",+x.dataset.star<=D.stars));});
+  $("sc").querySelectorAll("[data-ftag]").forEach(b=>b.onclick=()=>{const t=b.dataset.ftag;D.tags=D.tags.includes(t)?D.tags.filter(x=>x!==t):[...D.tags,t];b.classList.toggle("on");});
+  const home=()=>{DONE=null;TO=null;VIEW="idle";if(FROM&&!FROM.live)FROM=ME?{...ME,name:"Mi ubicación",live:true}:null;render();setSheet("peek");if(ME&&mapReady)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:14.5,duration:500});};
+  $("fbHome").onclick=home;
+  $("fbShare").onclick=async()=>{track("recomendar");const txt="Uso Metro Moro para moverme en Metro y bus por Caracas: te dice la ruta y por cuál salida salir. Gratis: "+URL_BASE;if(navigator.share){try{await navigator.share({title:"Metro Moro",text:txt});return;}catch(e){if(e.name==="AbortError")return;}}location.href="https://wa.me/?text="+encodeURIComponent(txt);};
+  $("fbSend").onclick=async()=>{const msg=$("fbTxt").value.trim();if(!D.stars&&!D.tags.length&&!msg){toast("Toca las estrellas o una opción 🙂");return;}
+    track("viaje: "+(D.stars||"?")+"★");D.tags.forEach(t=>track("viaje tag: "+t));
+    const btn=$("fbSend");btn.disabled=true;btn.textContent="Enviando…";
+    const body={_subject:`Metro Moro · Viaje ${D.stars?"★".repeat(D.stars):""} a ${D.to}`,Estrellas:D.stars||"—",Opciones:D.tags.join(", ")||"—",Comentario:msg||"—",Destino:D.to,"Tiempo real":fmt(D.real),"Tiempo estimado":fmt(D.est),Modo:MODES[D.mode]?MODES[D.mode][1]:D.mode,Transporte:D.legs.join(" + ")||"a pie",_template:"table",_captcha:"false"};
+    try{if(SIGN_MAIL)await fetch("https://formsubmit.co/ajax/"+SIGN_MAIL,{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify(body)});}catch(e){}
+    toast("¡Gracias! Tu opinión mejora Metro Moro 🙌",3500);home();};
 }
 function endTrip(){marker("train",null);if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;VIEW=TO?"route":"idle";render(true);}
 // estación actual dentro del tramo en tren
 const seqStart=li=>TRIP.seq.findIndex(s=>s.leg===li);
-function tripRemain(){const T=TRIP;let m=0,km=0;T.legs.forEach((l,k)=>{if(k<T.li)return;let f=k===T.li?T.frac:0;m+=(1-f)*(l.g.min||0);km+=(1-f)*l.km;});return{m,km};}
+function tripRemain(){const T=TRIP;let m=0,km=0,all=0;T.legs.forEach((l,k)=>{all+=l.g.min||0;if(k<T.li)return;let f=k===T.li?T.frac:0;m+=(1-f)*(l.g.min||0);km+=(1-f)*l.km;});const fac=all>0?Math.max(1,T.r.total/all):1;return{m:m*fac,km};}
 function tripStep(g){const kmTxt=x=>x<1?Math.round(x*1000/10)*10+" m":x.toFixed(1).replace(".",",")+" km";
   if(g.type==="walk"&&g.first&&g.kind==="bus")return{ic:"🚶",c:"#1a73e8",t:`Camina a la parada ${g.to}`,s:"Ahí tomas el bus"};
   if(g.type==="walk"&&g.first)return{ic:"🚶",c:"#1a73e8",t:`Camina a ${g.to}`,s:`Entra por ${exPlain(g.ex)}`};
@@ -558,33 +622,38 @@ function renderTrip(){
   const T=TRIP,r=T.r,L=T.legs[T.li],g=L.g,st=tripStep(g),rem=tripRemain(),arr=new Date(Date.now()+rem.m*60000);
   const kmTxt=x=>x<1?Math.round(x*100)*10+" m":x.toFixed(1).replace(".",",")+" km";
   let h=`<div class="eta"><b>${fmt(rem.m)}</b><span>${kmTxt(rem.km)} · llegas ${clock(arr)}</span></div>`;
+  if(T.off>=2)h+=`<div class="offr">⚠️ Parece que te saliste de la ruta.<button class="btn sm pri" id="tRe">Recalcular desde aquí</button></div>`;
   h+=`<div class="trip-now" style="background:${st.c};${st.c==="#F2B705"?"color:#2a2000":""}"><div class="k">Paso ${T.li+1} de ${T.legs.length}</div><div class="v">${esc(st.t)}</div><div class="x">${esc(st.s)}${g.type==="walk"&&L.km?" · "+kmTxt((1-T.frac)*L.km):""}</div></div>`;
   let btn="";
   if(g.type==="ride"){const s0=seqStart(T.li);let s1=s0;while(s1+1<T.seq.length&&T.seq[s1+1].leg===T.li)s1++;
     h+=`<ul class="stops">`;for(let k=s0;k<=s1;k++){const s=T.seq[k];h+=`<li class="${k<T.i?"done":k===T.i?"cur":k===s1?"end":""}" style="--lc:${LINES[s.line].color}">${esc(s.st)}${k===s1?`<span class="tag">Bájate</span>`:""}</li>`;}h+=`</ul>`;
     btn=T.i<s1?`<button class="btn pri" id="tNext">Llegué a ${esc(T.seq[T.i+1].st)}</button>`:`<button class="btn pri" id="tLeg">Me bajé · siguiente paso</button>`;
     if(mapReady){marker("train",ST[T.seq[T.i].st],"trainDot");if(markers.train)markers.train.getElement().style.setProperty("--lc",LINES[g.line].color);}
-  }else{marker("train",null);btn=T.li===T.legs.length-1?`<button class="btn pri" id="tEnd2">Llegué · terminar</button>`:`<button class="btn pri" id="tLeg">${g.type==="bus"?"Me bajé del bus":"Siguiente paso"}</button>`;}
+  }else{marker("train",null);btn=T.li===T.legs.length-1?`<button class="btn pri" id="tEnd2">🏁 Llegué</button>`:`<button class="btn pri" id="tLeg">${g.type==="bus"?"Me bajé del bus":"Siguiente paso"}</button>`;}
   h+=`<div class="btns">${btn}<button class="btn" id="tCenter" style="flex:.6;${T.follow?"display:none":""}">📍 Centrar</button><button class="btn" id="tEnd" style="flex:.5">Salir</button></div>`;
   h+=`<div class="sec">Tu ruta</div><ul class="steps">${T.legs.map((l,k)=>{const s=tripStep(l.g);return`<li style="${k<T.li?"opacity:.45":""}"><span class="ic" style="background:${s.c};color:#fff">${esc(s.ic)}</span><div>${k===T.li?"<b>":""}${esc(s.t)}${k===T.li?"</b>":""}<span class="t">${esc(s.s)} · ${fmt(l.g.min||1)}</span></div></li>`;}).join("")}</ul>`;
   h+=`<p class="note">${g.type==="ride"?"Bajo tierra casi no hay GPS: toca «Llegué» en cada estación (si hay señal cerca de una estación, avanzo solo).":"Te sigo con el GPS y avanzo solo cuando llegas a cada punto."}</p>`;
   $("sc").innerHTML=h;
   const nb=$("tNext");if(nb)nb.onclick=()=>{TRIP.i++;const s0=seqStart(TRIP.li);let s1=s0;while(s1+1<TRIP.seq.length&&TRIP.seq[s1+1].leg===TRIP.li)s1++;TRIP.frac=s1>s0?(TRIP.i-s0)/(s1-s0):0;render();if(navigator.vibrate)navigator.vibrate(30);};
-  const lb=$("tLeg");if(lb)lb.onclick=nextLeg;const e2=$("tEnd2");if(e2)e2.onclick=endTrip;
+  const lb=$("tLeg");if(lb)lb.onclick=nextLeg;const e2=$("tEnd2");if(e2)e2.onclick=finishTrip;
+  const re=$("tRe");if(re)re.onclick=()=>{track("recalcular");marker("train",null);if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;FROM={...ME,name:"Mi ubicación",live:true};VIEW="route";render();toast("Ruta nueva desde donde estás. Toca «Iniciar viaje».",3500);};
   $("tCenter").onclick=()=>{TRIP.follow=true;render();};$("tEnd").onclick=endTrip;
   if(mapReady){netOp(.28);
     setData("route",fc(T.legs.filter(l=>l.g.type==="ride"||l.g.type==="bus").map(l=>lineF(l.shape,{c:l.g.type==="bus"?BUS_COLOR:LINES[l.g.line].color}))));
     setData("walk",fc(T.legs.filter(l=>l.g.type==="walk"&&l.shape.length>1).map(l=>lineF(l.shape))));
-    if(T.follow&&ME&&g.type!=="ride")map.easeTo({center:LL([ME.lat,ME.lon]),zoom:16.5,padding:padding(),duration:600});
+    const near=ME&&L.shape.length&&projFrac(L.shape,[ME.lat,ME.lon]).d<1;
+    if(T.follow&&near&&g.type!=="ride")map.easeTo({center:LL([ME.lat,ME.lon]),zoom:16.5,padding:padding(),duration:600});
     else if(T.follow){const pts=g.type==="ride"?[ST[T.seq[T.i].st]].concat(T.seq[T.i+1]?[ST[T.seq[T.i+1].st]]:[]):L.shape;if(pts.length>1)fit(pts);else if(pts.length)map.easeTo({center:LL(pts[0]),zoom:15.5,padding:padding(),duration:500});}}
   const c=$("sc").querySelector(".stops .cur");if(c)c.scrollIntoView({block:"center"});
 }
 function tripGPS(acc){const T=TRIP;if(!T||!ME||acc>150)return;const me=[ME.lat,ME.lon],L=T.legs[T.li],g=L.g;let changed=false;
+  if(TO&&hav(me,[TO.lat,TO.lon])<0.06){finishTrip();return;}
+  if(g.type!=="ride"&&g.type!=="xfer"&&L.shape.length>1){const d=projFrac(L.shape,me).d;const off=d>0.3?T.off+1:0;if((off>=2)!==(T.off>=2)){T.off=off;render();return;}T.off=off;}
   if(g.type==="ride"){const nx=T.seq[T.i+1];if(nx&&nx.leg===T.li&&hav(me,ST[nx.st])<0.2){T.i++;changed=true;if(navigator.vibrate)navigator.vibrate([60,40,60]);}}
   else if(L.shape.length>1){const pr=projFrac(L.shape,me);if(pr.d<0.25&&pr.f>T.frac){T.frac=pr.f;changed=true;}
     const end=L.shape[L.shape.length-1];if(T.li<T.legs.length-1&&(hav(me,end)<0.04||T.frac>0.95)&&g.type!=="bus"){nextLeg();return;}
     if(g.type==="bus"){const nl=T.legs[T.li+1];if(nl&&nl.shape.length&&hav(me,nl.shape[0])<0.05&&T.frac>0.8){nextLeg();return;}}}
-  const now=Date.now();if(changed||now-T.lastDraw>8000){T.lastDraw=now;render();}else if(T.follow&&mapReady&&g.type!=="ride")map.easeTo({center:LL(me),duration:500});}
+  const now=Date.now();if(changed||now-T.lastDraw>8000){T.lastDraw=now;render();}else if(T.follow&&mapReady&&g.type!=="ride"&&L.shape.length&&projFrac(L.shape,me).d<1)map.easeTo({center:LL(me),duration:500});}
 
 // ================= BUSCADOR =================
 let choosing="to",searchTimer=null,searchResults=[];
@@ -637,12 +706,12 @@ function useGPS(user){
   if(watching){if(ME&&mapReady)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:15.5,duration:500});else if(user)toast("Buscando tu ubicación…");return;}
   watching=true;if(user)toast("Buscando tu ubicación… acepta el permiso.");
   navigator.geolocation.watchPosition(p=>{
-    const first=!ME;ME={lat:p.coords.latitude,lon:p.coords.longitude};marker("me",[ME.lat,ME.lon],"mefix");
+    const first=!ME;ME={lat:p.coords.latitude,lon:p.coords.longitude};marker("me",[ME.lat,ME.lon],"mefix");if(markers.me){const el=markers.me.getElement(),hd=p.coords.heading;if(hd!=null&&!isNaN(hd)&&(p.coords.speed||0)>0.5){el.classList.add("hd");el.style.setProperty("--hd",hd+"deg");}}
     if(pendingGPS){const w=pendingGPS;pendingGPS=null;setPoint(w,{...ME,name:"Mi ubicación",live:w==="from"});}
     else if(first){if(!FROM){FROM={...ME,name:"Mi ubicación",live:true};render();}if(mapReady&&!TO)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:14.5,duration:600});}
     else if(FROM&&FROM.live&&hav([FROM.lat,FROM.lon],[ME.lat,ME.lon])>0.06&&VIEW!=="trip"&&VIEW!=="station"){FROM={...ME,name:"Mi ubicación",live:true};render(true);}
     if(TRIP)tripGPS(p.coords.accuracy);
-  },err=>{watching=false;if(err.code===1&&(user||!FROM))toast("Sin permiso de ubicación. Actívalo en Ajustes › Safari › Ubicación, o elige tu punto de partida.",5000);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+  },err=>{watching=false;if(err.code!==1)setTimeout(()=>{if(!watching)useGPS(false);},5000);if(err.code===1&&(user||!FROM))toast("Sin permiso de ubicación. Actívalo en Ajustes › Safari › Ubicación, o elige tu punto de partida.",5000);},{enableHighAccuracy:true,maximumAge:5000,timeout:30000});
 }
 $("gps").onclick=()=>useGPS(true);
 
@@ -752,7 +821,11 @@ window.MM={route,busOptions,BUSES,walkTable,walkRoute,ST,EXITS,LINES,nearest,bes
   const pp=(k,nk)=>{const v=sp.get(k);if(!v)return null;const [la,lo]=v.split(",").map(Number);return isFinite(la)&&isFinite(lo)?{lat:la,lon:lo,name:sp.get(nk)||"Punto compartido"}:null;};
   const t=pp("to","tn"),f=pp("from","fn");if(t){TO=t;VIEW="route";}if(f)FROM=f;
   setSheet("peek");initMap();render();
-  try{navigator.permissions&&navigator.permissions.query({name:"geolocation"}).then(s=>{if(s.state==="granted")useGPS(false);}).catch(()=>{});}catch(e){}
+  // ubicación siempre activa: el GPS funciona sin internet
+  (function autoGPS(){let asked=false;const go=()=>{if(asked)return;asked=true;useGPS(false);};
+    try{if(navigator.permissions)navigator.permissions.query({name:"geolocation"}).then(s=>{if(s.state!=="denied")go();}).catch(go);else go();}catch(e){go();}
+    document.addEventListener("pointerdown",()=>{if(!watching)useGPS(false);},{once:true});
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!watching)useGPS(false);});})();
   const ios=/iPhone|iPad/.test(navigator.userAgent)&&!navigator.standalone;
   if(!store.get("welcomed",false)&&!t){$("welcome").classList.add("on");if(!ios)$("iosTip").style.display="none";}
   else useGPS(false);
