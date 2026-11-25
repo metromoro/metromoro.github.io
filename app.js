@@ -152,7 +152,7 @@ function applyMode(r){if(MODE==="metro")return r;
   return addBus(r);}
 const MODES={mix:["⚡","Mixto","Metro, bus y a pie: lo más rápido"],metro:["🚇","Metro","Solo Metro y caminar"],bus:["🚌","Bus","Solo Metrobús y otras rutas de bus"]};
 const modesHTML=()=>`<button class="modechip" data-openmode="1">${MODES[MODE][0]} ${MODES[MODE][1]} <span>▾</span></button>`;
-function setMode(k){MODE=k;store.set("mode",k);track("modo: "+k);const b=$("modeBtn");if(b)b.textContent=MODES[k][0];closeModePop();if(TO){$("sc").scrollTop=0;render(true);}else toast(`Viajarás en: ${MODES[k][1]}`);}
+function setMode(k){MODE=k;store.set("mode",k);track("modo: "+k);const b=$("modeBtn");if(b)b.textContent=MODES[k][0];closeModePop();SHOWNET=false;if(TO){$("sc").scrollTop=0;render(true);}else if(VIEW==="idle"){render(true);if(k==="metro"){fitAll();setSheet("half");}toast(k==="metro"?"🚇 Estas son todas las líneas del Metro":`Viajarás en: ${MODES[k][1]}`);}else toast(`Viajarás en: ${MODES[k][1]}`);}
 function openModePop(){const p=$("modePop");p.innerHTML=`<div class="lgt">¿Cómo quieres viajar?</div>`+Object.entries(MODES).map(([k,v])=>`<button class="mrow${k===MODE?" on":""}" data-setmode="${k}"><span class="mi">${v[0]}</span><span class="mt"><b>${v[1]}</b><small>${v[2]}</small></span>${k===MODE?"<span class=\"ok\">✓</span>":""}</button>`).join("");p.classList.add("on");}
 function closeModePop(){const p=$("modePop");if(p)p.classList.remove("on");}
 function addBus(r){if(!TO||!FROM)return r;const bo=busOptions(FROM,TO);if(!bo.length)return r;
@@ -222,6 +222,10 @@ const LL=p=>[p[1],p[0]];
 const fc=f=>({type:"FeatureCollection",features:f});
 const lineF=(pts,props)=>({type:"Feature",properties:props||{},geometry:{type:"LineString",coordinates:pts.map(LL)}});
 const ptF=(p,props)=>({type:"Feature",properties:props||{},geometry:{type:"Point",coordinates:LL(p)}});
+let SHOWNET=false;
+const METRO_LAYERS=["net-case","net","st","st-lbl","ex","ex-lbl"];
+function metroVis(on){if(!map||!map.getLayer("net"))return;for(const id of METRO_LAYERS)if(map.getLayer(id))map.setLayoutProperty(id,"visibility",on?"visible":"none");}
+const usesMetro=r=>!!(r&&r.legs&&r.legs.some(g=>g.type==="ride"));
 function netOp(v){if(map&&map.getLayer("net")){map.setPaintProperty("net","line-opacity",v);map.setPaintProperty("net-case","line-opacity",v);}}
 function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
@@ -278,6 +282,7 @@ function overlay(){
     map.addLayer({id:"st",type:"circle",source:"st",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,["case",["==",["get","x"],1],4,3],15,["case",["==",["get","x"],1],9,7]],"circle-color":["case",["==",["get","x"],1],"#fff",["get","c"]],"circle-stroke-color":["case",["==",["get","x"],1],"#16171b","#fff"],"circle-stroke-width":["case",["==",["get","x"],1],2.5,2]}});
     map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":LBLDARK()?"#fff":"#16171b","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
     map.addLayer({id:"rex-lbl",type:"symbol",source:"rex",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.3],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"in"],"#137a46","#b01f18"],"text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
+    metroVis(SHOWNET||MODE==="metro");
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
 function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";applyTheme();store.set("mapStyle",k);map.setStyle(styleURL(k),{diff:false});}
@@ -309,7 +314,7 @@ let FROM=null,TO=null,ME=null,VIEW="idle",TRIP=null,pickOnMap=null,renderTok=0,c
 const recents=()=>store.get("recents",[]);
 function addRecent(p){if(!p||p.live||/^Punto en el mapa|^Mi ubicación/.test(p.name))return;const r=recents().filter(x=>x.name!==p.name);r.unshift({name:p.name,lat:p.lat,lon:p.lon});store.set("recents",r.slice(0,8));}
 const saved=k=>store.get(k,null);
-function setPoint(which,p){
+function setPoint(which,p){if(which==="to")SHOWNET=false;
   if(!p)return;
   if(which==="home"||which==="work"){store.set(which,{name:p.name,lat:p.lat,lon:p.lon});toast(which==="home"?"Casa guardada":"Trabajo guardado");render(true);return;}
   if(which==="from")FROM=p;else{TO=p;addRecent(p);}
@@ -338,7 +343,7 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));netOp(1);}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
   if(VIEW!=="place")marker("place",null);
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="tripend")return renderTripEnd();
@@ -358,12 +363,13 @@ function renderIdle(tok){
     h+=`<div class="row" id="nearRow"><span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(nb.n)} ${chips(nb.n)}</div><div class="t2">${fmt(nb.w)} a pie hasta ${exName(nb.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,nb.ex.ll)}">Ir ↗</a></div>`;
     walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};
       if(best){const row=$("nearRow");if(row)row.innerHTML=`<span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(best.n)} ${chips(best.n)}</div><div class="t2">${fmt(best.w)} a pie hasta ${exName(best.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,best.ex.ll)}">Ir ↗</a>`;}
-      walkRoute(a,(best||nb).ex.ll).then(w=>{if(w&&tok===renderTok&&mapReady)setData("walk",fc([lineF(w.path)]));});});
+      walkRoute(a,(best||nb).ex.ll).then(w=>{if(w&&tok===renderTok&&mapReady&&(MODE==="metro"||SHOWNET))setData("walk",fc([lineF(w.path)]));});});
   }else h+=`<div class="row"><span class="em">📍</span><div class="tx"><div class="t1">Activa tu ubicación</div><div class="t2">Así te digo cuál es tu estación más cercana.</div></div><button class="btn sm" id="bGps">Activar</button></div>`;
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m.</div></div></div>`;
   const hm=saved("home"),wk=saved("work");
-  h+=`<div class="sec">Líneas del Metro</div>`+legendRows();
-  if(BUSES.length)h+=`<div class="sec">Bus</div><div class="row" data-buses="1" style="cursor:pointer"><span class="lg" style="background:${BUS_COLOR};color:#fff">🚌</span><div class="tx"><div class="t1">Rutas de bus</div><div class="t2">${BUSES.length} rutas · Metrobús y otras</div></div><span class="t2">›</span></div>`;
+  const metroSec=`<div class="sec">${MODE==="metro"?"🚇 Todas las líneas del Metro":"Líneas del Metro"}</div>`+(MODE==="metro"?`<p class="hint" style="margin:-2px 0 6px">Están en el mapa. Toca una línea para ver sus estaciones y salidas.</p>`:"")+legendRows();
+  const busSec=BUSES.length?`<div class="sec">Bus</div><div class="row" data-buses="1" style="cursor:pointer"><span class="lg" style="background:${BUS_COLOR};color:#fff">🚌</span><div class="tx"><div class="t1">Rutas de bus</div><div class="t2">${BUSES.length} rutas · Metrobús y otras</div></div><span class="t2">›</span></div>`:"";
+  if(MODE==="metro")h=metroSec+h+busSec;else if(MODE==="bus")h=busSec+h+metroSec;else h+=metroSec+busSec;
   h+=`<div class="sec">Tus lugares</div>`;
   h+=`<div class="row" data-go="home"><span class="em">🏠</span><div class="tx"><div class="t1">Casa</div><div class="t2">${hm?esc(hm.name):"Toca para guardarla"}</div></div>${hm?`<button class="link" data-edit="home">Cambiar</button>`:""}</div>`;
   h+=`<div class="row" data-go="work"><span class="em">💼</span><div class="tx"><div class="t1">Trabajo</div><div class="t2">${wk?esc(wk.name):"Toca para guardarlo"}</div></div>${wk?`<button class="link" data-edit="work">Cambiar</button>`:""}</div>`;
@@ -432,7 +438,7 @@ function withAlts(r,ov){
   const chosen=r.walkOnly?null:r.legs[r.legs.length-1].from;const alts=[];
   for(const n of ends){if(n===chosen)continue;const a=route(FROM,TO,ov,{force:true,endOnly:n,wide:true});if(a.walkOnly||!a.legs.some(g=>g.type==="ride")||a.legs[0].to===a.legs[a.legs.length-1].from)continue;
     if(alts.some(x=>x.legs[x.legs.length-1].from===a.legs[a.legs.length-1].from))continue;alts.push(a);}
-  alts.sort((a,b)=>a.total-b.total);r.alts=alts.filter(a=>a.total<=r.total+20).slice(0,r.walkOnly?2:3);
+  alts.sort((a,b)=>a.total-b.total);r.alts=MODE==="metro"?alts.filter(a=>a.total<=r.total+40).slice(0,5):alts.filter(a=>a.total<=r.total+20).slice(0,r.walkOnly?2:3);
   if(!r.walkOnly&&r.direct&&r.direct<r.total+5)r.alts.push({walkOnly:true,total:r.direct,direct:r.direct});
   r.alts.forEach(a=>a.ad=r.ad);return r;}
 function renderRoute(tok,keepView){
@@ -447,7 +453,7 @@ function renderRoute(tok,keepView){
     showRoute(R2,tok,keepView||same,true);
   });
 }
-function showRoute(r,tok,keepView,final){if(r.noBus){$("sc").innerHTML=routeHTML(r);bindRoute(r);if(mapReady){setData("route",fc([]));setData("rex",fc([]));setData("walk",fc([]));netOp(1);}return;}
+function showRoute(r,tok,keepView,final){if(mapReady)metroVis(SHOWNET||usesMetro(r)||(MODE==="metro"&&r.walkOnly));if(r.noBus){$("sc").innerHTML=routeHTML(r);bindRoute(r);if(mapReady){setData("route",fc([]));setData("rex",fc([]));setData("walk",fc([]));netOp(1);}return;}
   const a=[FROM.lat,FROM.lon],b=[TO.lat,TO.lon];
   const st=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);if(final)$("sc").scrollTop=st;else if(!keepView)setSheet(sheetState==="peek"?"half":sheetState);
   if(!mapReady)return;
@@ -484,7 +490,7 @@ function renderBuses(){
   h+=`<div id="busList">${busRowsHTML(busQ)}</div><p class="note">Rutas de OpenStreetMap. El Metrobús suele tener pocas unidades y horarios irregulares.</p>`;
   $("sc").innerHTML=h;const q=$("busQ");q.oninput=()=>{busQ=q.value;$("busList").innerHTML=busRowsHTML(busQ);};
   $("busList").onclick=e=>{const r=e.target.closest("[data-bus]");if(r)openBus(r.dataset.bus);};
-  if(mapReady){netOp(.25);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:BUS_COLOR}))));fitAll("ccs");}
+  if(mapReady){metroVis(false);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:BUS_COLOR}))));fitAll("ccs");}
 }
 function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuses();}
   let h=`<div class="vtop"><button class="link" id="bBack">← Rutas de bus</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div>`;
@@ -493,7 +499,7 @@ function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuse
   h+=`<p class="note">Toca una parada para ir allá.</p>`;
   $("sc").innerHTML=h;$("bBack").onclick=()=>{VIEW="buses";render();setSheet("full");};
   $("sc").querySelectorAll("[data-bs]").forEach(li=>li.onclick=()=>{const s=b.stops[+li.dataset.bs];setPoint("to",{lat:s.ll[0],lon:s.ll[1],name:"Parada "+s.name});});
-  if(mapReady){netOp(.25);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:BUS_COLOR})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
+  if(mapReady){metroVis(false);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:BUS_COLOR})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
 }
 function openLine(L){curLine=L;VIEW="line";$("legend").classList.remove("on");render();setSheet("half");}
 function renderLine(){
@@ -638,7 +644,7 @@ function renderTrip(){
   const lb=$("tLeg");if(lb)lb.onclick=nextLeg;const e2=$("tEnd2");if(e2)e2.onclick=finishTrip;
   const re=$("tRe");if(re)re.onclick=()=>{track("recalcular");marker("train",null);if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;FROM={...ME,name:"Mi ubicación",live:true};VIEW="route";render();toast("Ruta nueva desde donde estás. Toca «Iniciar viaje».",3500);};
   $("tCenter").onclick=()=>{TRIP.follow=true;render();};$("tEnd").onclick=endTrip;
-  if(mapReady){netOp(.28);
+  if(mapReady){netOp(.28);metroVis(T.legs.some(l=>l.g.type==="ride"));
     setData("route",fc(T.legs.filter(l=>l.g.type==="ride"||l.g.type==="bus").map(l=>lineF(l.shape,{c:l.g.type==="bus"?BUS_COLOR:LINES[l.g.line].color}))));
     setData("walk",fc(T.legs.filter(l=>l.g.type==="walk"&&l.shape.length>1).map(l=>lineF(l.shape))));
     const near=ME&&L.shape.length&&projFrac(L.shape,[ME.lat,ME.lon]).d<1;
@@ -738,7 +744,7 @@ $("mlist").onclick=e=>{const r=e.target.closest("[data-m]");if(!r)return;const m
   if(m==="rep"){openReport("");return;}
   if(m==="dl"){$("menu").classList.remove("on");downloadMap();}
   if(m==="ios"){$("menu").classList.remove("on");$("iosTip").style.display="block";$("welcome").classList.add("on");}
-  if(m==="net"){$("menu").classList.remove("on");clearDest();fitAll();}
+  if(m==="net"){$("menu").classList.remove("on");SHOWNET=true;clearDest();fitAll();toast("Mostrando toda la red del Metro");}
   if(m==="ads")location.href=CONTACT+"?subject="+encodeURIComponent("Publicidad en Metro Moro");
   if(m==="clr"){store.set("home",null);store.set("work",null);store.set("recents",[]);toast("Listo, borrado.");$("menu").classList.remove("on");render(true);}
 };
