@@ -144,6 +144,13 @@ function busOptions(from,to){if(!BUSES.length)return[];const fp=[from.lat,from.l
     const first=m.legs[0];const legs=[{type:"walk",first:true,kind:"bus",to:t.b.stops[t.i].name,min:t.w1,ex:{ll:t.b.stops[t.i].ll,name:""}},busLeg(t),{type:"walk",mid:true,toMetro:true,to:first.to,ex:first.ex,stop:stop.name,ll:stop.ll,min:first.min}].concat(m.legs.slice(1));
     opts.push({bus:true,walkOnly:false,direct:walkMin(fp,tp),total:t.w1+BUS_WAIT+t.ride+m.total,legs});}
   opts.sort((x,y)=>x.total-y.total);const seen=new Set();return opts.filter(o=>{const k=o.legs.map(g=>g.type==="bus"?"b"+g.b.ref+g.to:g.type==="ride"?g.line+g.to:"").join();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,3);}
+function busOnly(from,to){if(!BUSES.length)return[];const fp=[from.lat,from.lon],tp=[to.lat,to.lon];
+  return busTrips(fp,tp,15,15).slice(0,3).map(d=>({bus:true,walkOnly:false,direct:walkMin(fp,tp),total:d.total,legs:[{type:"walk",first:true,kind:"bus",to:d.b.stops[d.i].name,min:d.w1,ex:{ll:d.b.stops[d.i].ll,name:""}},busLeg(d),{type:"walk",last:true,kind:"bus",from:d.b.stops[d.j].name,min:d.w2,ex:{ll:d.b.stops[d.j].ll,name:""}}]}));}
+let MODE=store.get("mode","mix");if(!["mix","metro","bus"].includes(MODE))MODE="mix";
+function applyMode(r){if(MODE==="metro")return r;
+  if(MODE==="bus"){const bo=busOnly(FROM,TO);if(!bo.length)return{noBus:true,walkOnly:true,total:r.direct||r.total,direct:r.direct||r.total,legs:[]};const m=bo[0];m.alts=bo.slice(1);return m;}
+  return addBus(r);}
+const modesHTML=()=>`<div class="modes">${[["mix","⚡ Mejor ruta"],["metro","🚇 Metro"],["bus","🚌 Bus"]].map(([k,t])=>`<button data-mode="${k}" class="${MODE===k?"on":""}">${t}</button>`).join("")}</div>`;
 function addBus(r){if(!TO||!FROM)return r;const bo=busOptions(FROM,TO);if(!bo.length)return r;
   if(r.walkOnly&&r.direct<=15)return r;
   const best=bo[0];if(best.total<r.total-5){const main=best;main.alts=[r,...(r.alts||[]),...bo.slice(1)].filter(x=>x!==main&&x.total<=main.total+30).sort((x,y)=>x.total-y.total).slice(0,4);r.alts=null;return main;}
@@ -216,7 +223,7 @@ function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
   map=new maplibregl.Map({container:"map",style:styleURL(mapStyle),center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:false,pitchWithRotate:false,attributionControl:{compact:true}});
-  {let lc="";map.on("moveend",()=>{const c=curCity();if(c!==lc){lc=c;drawQuick();}});}
+  {let lc="";map.on("moveend",()=>{const c=curCity();if(c!==lc){lc=c;store.set("city",c);drawQuick();}});map.on("dragstart",()=>{if(TRIP&&TRIP.follow){TRIP.follow=false;const b=$("tCenter");if(b)b.style.display="";}});}
   map.touchZoomRotate.disableRotation();
   map.on("styledata",()=>{if(!map.getSource("net")&&map.isStyleLoaded()){overlay();if(mapReady)render(true);}});
   map.on("style.load",()=>{if(!map.getSource("net")){overlay();if(mapReady)render(true);}});
@@ -233,7 +240,7 @@ function initMap(){
     for(const ev of["touchend","touchmove","touchcancel"])cv.addEventListener(ev,()=>clearTimeout(lp),{passive:true});
     map.on("zoomend",()=>{if(map.getLayer("st-lbl"))map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);});
     mapReady=true;
-    if(!ME&&!TO)fitAll();
+    if(!ME&&!TO)fitAll(store.get("city","ccs"));
     render();
   });
 }
@@ -270,7 +277,7 @@ function setMapStyle(k){if(!STYLES[k]||!map)return;mapStyle=k;DARK=k==="oscuro";
 const DESK=()=>matchMedia("(min-width:900px)").matches;
 function padding(){if(DESK())return{top:40,bottom:40,left:470,right:60};return{top:($("top").offsetHeight||120)+20,bottom:Math.min(sheetPx(),innerHeight*0.6)+30,left:40,right:40};}
 function fit(pts){if(!mapReady||!pts.length)return;const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));map.fitBounds(b,{padding:padding(),maxZoom:16.5,duration:500});}
-function fitAll(){fit(Object.keys(ST).filter(n=>!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));}
+function fitAll(c){c=c||curCity();fit(Object.keys(ST).filter(n=>cityAt(ST[n][0],ST[n][1])===c&&!["Alí Primera","Guaicaipuro","Independencia"].includes(n)).map(n=>ST[n]));}
 const markers={};
 function marker(key,p,cls){if(!map)return;if(!p){if(markers[key]){markers[key].remove();delete markers[key];}return;}
   if(!markers[key]){const el=document.createElement("div");el.className=cls;markers[key]=new maplibregl.Marker({element:el,anchor:cls==="pin"?"bottom-left":"center"}).setLngLat(LL(p)).addTo(map);}else markers[key].setLngLat(LL(p));}
@@ -383,10 +390,11 @@ function stepsHTML(r){
 }
 function routeHTML(r){
   const arr=new Date(Date.now()+r.total*60000);
-  let h=`<div class="sum"><b>${fmt(r.total)}</b><span>llegas ~${clock(arr)}${r.walkOnly?" · a pie":" · a pie serían "+fmt(r.direct)}</span></div>`;
+  if(r.noBus)return modesHTML()+`<p class="hint" style="margin:10px 0">No encontré una ruta solo en bus entre estos dos puntos. Prueba con «Mejor ruta» o «Metro».</p><button class="from" id="bFrom2"><span class="d"></span><span style="flex:1"><span style="display:block;font-size:12px;color:var(--mut)">Desde</span><b>${esc(FROM.name)}</b></span><span class="link">Cambiar</span></button>`;
+  let h=modesHTML()+`<div class="sum"><b>${fmt(r.total)}</b><span>llegas ~${clock(arr)}${r.walkOnly?" · a pie":" · a pie serían "+fmt(r.direct)}</span></div>`;
   if(!r.walkOnly)h+=`<div class="flow">${legFlow(r)}</div>`;
   if(!metroOpen()&&!r.walkOnly)h+=`<p class="hint" style="color:var(--acc);margin:6px 0 0">El Metro está cerrado ahora (abre 5:30 a. m.).</p>`;
-  h+=`<div class="btns">${r.walkOnly||!r.legs.some(g=>g.type==="ride")?(r.walkOnly?`<a class="btn pri" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],[TO.lat,TO.lon])}">Ir caminando ↗</a>`:""):`<button class="btn pri" id="bTrip">▶ Iniciar viaje</button>`}<button class="btn" id="bShare">Compartir</button></div>`;
+  h+=`<div class="btns">${r.walkOnly?(r.walkOnly?`<a class="btn pri" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],[TO.lat,TO.lon])}">Ir caminando ↗</a>`:""):`<button class="btn pri" id="bTrip">▶ Iniciar viaje</button>`}<button class="btn" id="bShare">Compartir</button></div>`;
   h+=`<button class="from" id="bFrom2"><span class="d"></span><span style="flex:1"><span style="display:block;font-size:12px;color:var(--mut)">Desde</span><b>${esc(FROM.name)}</b></span><span class="link">Cambiar</span></button>`;
   if(r.walkOnly)h+=`<p class="hint">Te queda más rápido ir caminando que tomar el Metro.</p>`;else h+=stepsHTML(r);
   if(r.alts&&r.alts.length){h+=`<div class="sec">${r.walkOnly?"Si prefieres ir en Metro":"Otras opciones"}</div>`;
@@ -402,7 +410,8 @@ let lastTracked="";
 function bindRoute(r){
   const t=$("bTrip");if(t)t.onclick=()=>startTrip(r);bindReport();
   if(TO&&TO.name!==lastTracked){lastTracked=TO.name;track("destino: "+TO.name);}
-  $("bShare").onclick=()=>share(r);$("bFrom2").onclick=()=>openPicker("from");
+  $("sc").querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{MODE=b.dataset.mode;store.set("mode",MODE);track("modo: "+MODE);$("sc").scrollTop=0;render(true);});
+  if($("bShare"))$("bShare").onclick=()=>share(r);if($("bFrom2"))$("bFrom2").onclick=()=>openPicker("from");if(r.noBus)return;
   $("sc").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>setPoint(b.dataset.save,{...TO}));
   $("sc").querySelectorAll("[data-alt]").forEach(b=>b.onclick=()=>{const i=+b.dataset.alt,a=r.alts[i];a.alts=[r,...r.alts.filter((_,j)=>j!==i)];r.alts=null;$("sc").scrollTop=0;showRoute(a,renderTok,false,true);});
 }
@@ -418,16 +427,16 @@ function withAlts(r,ov){
 function renderRoute(tok,keepView){
   VIEW="route";const a=[FROM.lat,FROM.lon],b=[TO.lat,TO.lon];const r=route(FROM,TO);
   if(!r.walkOnly)r.ad=pickAd(r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]));
-  withAlts(r,null);const R1=addBus(r);showRoute(R1,tok,keepView,false);
+  withAlts(r,null);const R1=applyMode(r);showRoute(R1,tok,keepView,false);
   // con señal: recalcula con las caminatas reales para escoger la mejor estación y la mejor salida
   Promise.all([walkTable(a,true),walkTable(b,false)]).then(([o,d])=>{
     if(tok!==renderTok||VIEW!=="route"||(!o&&!d))return;
-    const ov={o,d};const r2=route(FROM,TO,ov);r2.ad=r.ad||(!r2.walkOnly?pickAd(r2.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to])):null);withAlts(r2,ov);const R2=addBus(r2);
+    const ov={o,d};const r2=route(FROM,TO,ov);r2.ad=r.ad||(!r2.walkOnly?pickAd(r2.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to])):null);withAlts(r2,ov);const R2=applyMode(r2);
     const same=!r.walkOnly&&!r2.walkOnly&&r.legs[0].to===r2.legs[0].to&&r.legs[r.legs.length-1].from===r2.legs[r2.legs.length-1].from;
     showRoute(R2,tok,keepView||same,true);
   });
 }
-function showRoute(r,tok,keepView,final){
+function showRoute(r,tok,keepView,final){if(r.noBus){$("sc").innerHTML=routeHTML(r);bindRoute(r);if(mapReady){setData("route",fc([]));setData("rex",fc([]));setData("walk",fc([]));netOp(1);}return;}
   const a=[FROM.lat,FROM.lon],b=[TO.lat,TO.lon];
   const st=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);if(final)$("sc").scrollTop=st;else if(!keepView)setSheet(sheetState==="peek"?"half":sheetState);
   if(!mapReady)return;
@@ -444,7 +453,7 @@ function showRoute(r,tok,keepView,final){
   Promise.all([walkRoute(a,first.ex.ll),walkRoute(last.ex.ll,b)]).then(([w1,w2])=>{
     if(tok!==renderTok)return;
     setData("walk",fc([lineF(w1?w1.path:[a,first.ex.ll]),lineF(w2?w2.path:[last.ex.ll,b]),...mids]));
-    let ch=false;if(w1&&!first.m){first.m=w1.m;if(!final||first.kind==="bus"){r.total+=w1.min-first.min;first.min=w1.min;}ch=true;}
+    let ch=false;if(w1)first.path=w1.path;if(w2)last.path=w2.path;if(w1&&!first.m){first.m=w1.m;if(!final||first.kind==="bus"){r.total+=w1.min-first.min;first.min=w1.min;}ch=true;}
     if(w2&&!last.m){last.m=w2.m;if(!final||last.kind==="bus"){r.total+=w2.min-last.min;last.min=w2.min;}ch=true;}
     if(ch&&VIEW==="route"){const s2=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);$("sc").scrollTop=s2;}
   });
@@ -515,38 +524,67 @@ async function share(r){track("compartir");
 }
 
 // --- modo en el tren ---
+function legShape(g){if(g.type==="ride")return pathShape(g.line,g.path);if(g.type==="bus")return g.shape||[];
+  if(g.type==="walk"&&g.first)return g.path||[[FROM.lat,FROM.lon],g.ex.ll];
+  if(g.type==="walk"&&g.last)return g.path||[g.ex.ll,[TO.lat,TO.lon]];
+  if(g.type==="walk"&&g.mid)return g.toBus?[g.ex.ll,g.ll]:[g.ll,g.ex.ll];return[];}
+const plen=s=>{let d=0;for(let i=1;i<s.length;i++)d+=hav(s[i-1],s[i]);return d;};
+function projFrac(s,p){if(s.length<2)return{d:s.length?hav(s[0],p):Infinity,f:0};let best={d:Infinity,f:0},acc=0;const tot=plen(s)||1e-9;
+  for(let i=1;i<s.length;i++){const A=s[i-1],B=s[i],seg=hav(A,B),k=Math.cos(A[0]*Math.PI/180);const ax=A[1]*k,ay=A[0],dx=B[1]*k-ax,dy=B[0]-ay,L2=dx*dx+dy*dy;
+    let t=L2?((p[1]*k-ax)*dx+(p[0]-ay)*dy)/L2:0;t=Math.max(0,Math.min(1,t));const q=[ay+t*dy,(ax+t*dx)/k],d=hav(q,p);if(d<best.d)best={d,f:(acc+seg*t)/tot};acc+=seg;}
+  return best;}
 function startTrip(r){
   const seq=[];r.legs.forEach((g,li)=>{if(g.type==="ride")g.path.forEach((s,i)=>{if(i===0&&seq.length&&seq[seq.length-1].st===s){seq[seq.length-1].xfer=true;return;}seq.push({st:s,leg:li,line:g.line});});});
-  track("iniciar viaje");TRIP={r,seq,i:0};VIEW="trip";setSheet("half");render();
+  const legs=r.legs.map(g=>{const shape=legShape(g);return{g,shape,km:plen(shape)};});
+  track("iniciar viaje");TRIP={r,seq,legs,li:0,frac:0,i:0,follow:true,lastDraw:0};VIEW="trip";setSheet("half");useGPS(false);render();
   try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(l=>{if(TRIP)TRIP.lock=l;}).catch(()=>{});}catch(e){}
 }
 function endTrip(){marker("train",null);if(TRIP&&TRIP.lock)try{TRIP.lock.release();}catch(e){}TRIP=null;VIEW=TO?"route":"idle";render(true);}
+// estación actual dentro del tramo en tren
+const seqStart=li=>TRIP.seq.findIndex(s=>s.leg===li);
+function tripRemain(){const T=TRIP;let m=0,km=0;T.legs.forEach((l,k)=>{if(k<T.li)return;let f=k===T.li?T.frac:0;m+=(1-f)*(l.g.min||0);km+=(1-f)*l.km;});return{m,km};}
+function tripStep(g){const kmTxt=x=>x<1?Math.round(x*1000/10)*10+" m":x.toFixed(1).replace(".",",")+" km";
+  if(g.type==="walk"&&g.first&&g.kind==="bus")return{ic:"🚶",c:"#1a73e8",t:`Camina a la parada ${g.to}`,s:"Ahí tomas el bus"};
+  if(g.type==="walk"&&g.first)return{ic:"🚶",c:"#1a73e8",t:`Camina a ${g.to}`,s:`Entra por ${exPlain(g.ex)}`};
+  if(g.type==="walk"&&g.mid&&g.toBus)return{ic:"🚶",c:"#1a73e8",t:`Sal por ${exPlain(g.ex)}`,s:`Camina a la parada ${g.stop}`};
+  if(g.type==="walk"&&g.mid)return{ic:"🚶",c:"#1a73e8",t:`Camina a ${g.to}`,s:`Entra por ${exPlain(g.ex)}`};
+  if(g.type==="ride"){const L=LINES[g.line];return{ic:L.short,c:L.color,t:`${L.name} · dirección ${g.dir}`,s:`Bájate en ${g.to}`};}
+  if(g.type==="xfer"){const L=LINES[g.toLine];return{ic:"⇄",c:L.color,t:`Transbordo en ${g.from}`,s:`Cambia a la ${L.name}`};}
+  if(g.type==="bus")return{ic:"🚌",c:BUS_COLOR,t:`Toma el ${busTitle(g.b)} en ${g.from}`,s:`Bájate en ${g.to} · ${g.stops} paradas`};
+  if(g.type==="walk"&&g.last)return{ic:"🏁",c:"#1aa260",t:g.kind==="bus"?`Bájate y camina a ${TO.name}`:`Sal por ${exPlain(g.ex)}`,s:g.kind==="bus"?"Ya casi llegas":`Camina a ${TO.name}`};
+  return{ic:"•",c:"#888",t:"",s:""};}
+function nextLeg(){const T=TRIP;if(T.li<T.legs.length-1){T.li++;T.frac=0;const g=T.legs[T.li].g;if(g.type==="ride"){const s=seqStart(T.li);if(s>=0)T.i=s;}if(navigator.vibrate)navigator.vibrate([60,40,60]);}render();}
 function renderTrip(){
-  const T=TRIP,r=T.r,n=T.seq.length,cur=T.seq[T.i],next=T.seq[T.i+1];
-  const finalLeg=r.legs[r.legs.length-1];
-  if(mapReady){netOp(.28);
-    setData("route",fc(r.legs.filter(g=>g.type==="ride").map(g=>lineF(pathShape(g.line,g.path),{c:LINES[g.line].color}))));}
-  // ¿dónde se baja uno de esta línea? (último índice del tramo)
-  const legEnd=k=>{let j=k;while(j+1<n&&T.seq[j+1].leg===T.seq[k].leg)j++;return j;};
-  const nextLegOf=k=>T.seq[legEnd(k)+1];
-  let box;
-  if(T.i===n-1)box={k:"Llegaste a",v:cur.st,x:`Sal por ${exPlain(finalLeg.ex)} y camina ${fmt(finalLeg.min)} hasta ${TO.name}.`,c:"#1aa260"};
-  else if(legEnd(T.i)===T.i){const nl=nextLegOf(T.i);box={k:"Transbordo",v:`Bájate aquí: ${cur.st}`,x:`Cambia a la ${LINES[nl.line].name} dirección ${r.legs[nl.leg].dir}.`,c:LINES[nl.line].color};}
-  else if(legEnd(T.i)===T.i+1){const fin=T.i+1===n-1;box={k:"¡Bájate en la próxima!",v:next.st,x:fin?`Luego sal por ${exPlain(finalLeg.ex)}.`:`Ahí haces transbordo a la ${LINES[nextLegOf(T.i+1).line].name}.`,c:"#d7261e"};}
-  else{const leg=r.legs[cur.leg],rem=legEnd(T.i)-T.i;box={k:`${LINES[leg.line].name} · dirección ${leg.dir}`,v:`Próxima: ${next.st}`,x:`Te bajas en ${T.seq[legEnd(T.i)].st} · faltan ${rem} estaciones.`,c:LINES[leg.line].color};}
-  let h=`<div class="trip-now" style="background:${box.c};${box.c==="#F2B705"?"color:#2a2000":""}"><div class="k">${esc(box.k)}</div><div class="v">${esc(box.v)}</div><div class="x">${esc(box.x)}</div></div>`;
-  h+=`<ul class="stops">`;T.seq.forEach((s,k)=>{const end=legEnd(k)===k;h+=`<li class="${k<T.i?"done":k===T.i?"cur":end?"end":""}" style="--lc:${LINES[s.line].color}">${esc(s.st)}${end&&k>=T.i?`<span class="tag">${k===n-1?"Bájate":"Transbordo"}</span>`:""}</li>`;});h+=`</ul>`;
-  h+=`<div class="btns">${T.i===n-1?`<button class="btn pri" id="tEnd">Terminar viaje</button>`:`<button class="btn pri" id="tNext">Llegué a ${esc(next.st)}</button><button class="btn" id="tEnd" style="flex:.5">Salir</button>`}</div>`;
-  h+=`<p class="note">Abajo casi no hay GPS: toca «Llegué» en cada estación. Si tu teléfono tiene señal cerca de una estación, avanzo solo.</p>`;
+  const T=TRIP,r=T.r,L=T.legs[T.li],g=L.g,st=tripStep(g),rem=tripRemain(),arr=new Date(Date.now()+rem.m*60000);
+  const kmTxt=x=>x<1?Math.round(x*100)*10+" m":x.toFixed(1).replace(".",",")+" km";
+  let h=`<div class="eta"><b>${fmt(rem.m)}</b><span>${kmTxt(rem.km)} · llegas ${clock(arr)}</span></div>`;
+  h+=`<div class="trip-now" style="background:${st.c};${st.c==="#F2B705"?"color:#2a2000":""}"><div class="k">Paso ${T.li+1} de ${T.legs.length}</div><div class="v">${esc(st.t)}</div><div class="x">${esc(st.s)}${g.type==="walk"&&L.km?" · "+kmTxt((1-T.frac)*L.km):""}</div></div>`;
+  let btn="";
+  if(g.type==="ride"){const s0=seqStart(T.li);let s1=s0;while(s1+1<T.seq.length&&T.seq[s1+1].leg===T.li)s1++;
+    h+=`<ul class="stops">`;for(let k=s0;k<=s1;k++){const s=T.seq[k];h+=`<li class="${k<T.i?"done":k===T.i?"cur":k===s1?"end":""}" style="--lc:${LINES[s.line].color}">${esc(s.st)}${k===s1?`<span class="tag">Bájate</span>`:""}</li>`;}h+=`</ul>`;
+    btn=T.i<s1?`<button class="btn pri" id="tNext">Llegué a ${esc(T.seq[T.i+1].st)}</button>`:`<button class="btn pri" id="tLeg">Me bajé · siguiente paso</button>`;
+    if(mapReady){marker("train",ST[T.seq[T.i].st],"trainDot");if(markers.train)markers.train.getElement().style.setProperty("--lc",LINES[g.line].color);}
+  }else{marker("train",null);btn=T.li===T.legs.length-1?`<button class="btn pri" id="tEnd2">Llegué · terminar</button>`:`<button class="btn pri" id="tLeg">${g.type==="bus"?"Me bajé del bus":"Siguiente paso"}</button>`;}
+  h+=`<div class="btns">${btn}<button class="btn" id="tCenter" style="flex:.6;${T.follow?"display:none":""}">📍 Centrar</button><button class="btn" id="tEnd" style="flex:.5">Salir</button></div>`;
+  h+=`<div class="sec">Tu ruta</div><ul class="steps">${T.legs.map((l,k)=>{const s=tripStep(l.g);return`<li style="${k<T.li?"opacity:.45":""}"><span class="ic" style="background:${s.c};color:#fff">${esc(s.ic)}</span><div>${k===T.li?"<b>":""}${esc(s.t)}${k===T.li?"</b>":""}<span class="t">${esc(s.s)} · ${fmt(l.g.min||1)}</span></div></li>`;}).join("")}</ul>`;
+  h+=`<p class="note">${g.type==="ride"?"Bajo tierra casi no hay GPS: toca «Llegué» en cada estación (si hay señal cerca de una estación, avanzo solo).":"Te sigo con el GPS y avanzo solo cuando llegas a cada punto."}</p>`;
   $("sc").innerHTML=h;
-  const nb=$("tNext");if(nb)nb.onclick=()=>{TRIP.i++;render();if(navigator.vibrate)navigator.vibrate(30);};
-  // en el mapa: dónde va el tren y la próxima estación, siempre a la vista sobre el panel
-  if(mapReady){const el=marker("train",ST[cur.st],"trainDot");if(markers.train)markers.train.getElement().style.setProperty("--lc",LINES[cur.line].color);
-    const pts=[ST[cur.st]];if(next)pts.push(ST[next.st]);if(ME&&TRIP.follow)pts.push([ME.lat,ME.lon]);
-    if(pts.length>1)fit(pts);else map.easeTo({center:LL(pts[0]),zoom:15.5,padding:padding(),duration:500});}
-  $("tEnd").onclick=endTrip;
+  const nb=$("tNext");if(nb)nb.onclick=()=>{TRIP.i++;const s0=seqStart(TRIP.li);let s1=s0;while(s1+1<TRIP.seq.length&&TRIP.seq[s1+1].leg===TRIP.li)s1++;TRIP.frac=s1>s0?(TRIP.i-s0)/(s1-s0):0;render();if(navigator.vibrate)navigator.vibrate(30);};
+  const lb=$("tLeg");if(lb)lb.onclick=nextLeg;const e2=$("tEnd2");if(e2)e2.onclick=endTrip;
+  $("tCenter").onclick=()=>{TRIP.follow=true;render();};$("tEnd").onclick=endTrip;
+  if(mapReady){netOp(.28);
+    setData("route",fc(T.legs.filter(l=>l.g.type==="ride"||l.g.type==="bus").map(l=>lineF(l.shape,{c:l.g.type==="bus"?BUS_COLOR:LINES[l.g.line].color}))));
+    setData("walk",fc(T.legs.filter(l=>l.g.type==="walk"&&l.shape.length>1).map(l=>lineF(l.shape))));
+    if(T.follow&&ME&&g.type!=="ride")map.easeTo({center:LL([ME.lat,ME.lon]),zoom:16.5,padding:padding(),duration:600});
+    else if(T.follow){const pts=g.type==="ride"?[ST[T.seq[T.i].st]].concat(T.seq[T.i+1]?[ST[T.seq[T.i+1].st]]:[]):L.shape;if(pts.length>1)fit(pts);else if(pts.length)map.easeTo({center:LL(pts[0]),zoom:15.5,padding:padding(),duration:500});}}
   const c=$("sc").querySelector(".stops .cur");if(c)c.scrollIntoView({block:"center"});
 }
+function tripGPS(acc){const T=TRIP;if(!T||!ME||acc>150)return;const me=[ME.lat,ME.lon],L=T.legs[T.li],g=L.g;let changed=false;
+  if(g.type==="ride"){const nx=T.seq[T.i+1];if(nx&&nx.leg===T.li&&hav(me,ST[nx.st])<0.2){T.i++;changed=true;if(navigator.vibrate)navigator.vibrate([60,40,60]);}}
+  else if(L.shape.length>1){const pr=projFrac(L.shape,me);if(pr.d<0.25&&pr.f>T.frac){T.frac=pr.f;changed=true;}
+    const end=L.shape[L.shape.length-1];if(T.li<T.legs.length-1&&(hav(me,end)<0.04||T.frac>0.95)&&g.type!=="bus"){nextLeg();return;}
+    if(g.type==="bus"){const nl=T.legs[T.li+1];if(nl&&nl.shape.length&&hav(me,nl.shape[0])<0.05&&T.frac>0.8){nextLeg();return;}}}
+  const now=Date.now();if(changed||now-T.lastDraw>8000){T.lastDraw=now;render();}else if(T.follow&&mapReady&&g.type!=="ride")map.easeTo({center:LL(me),duration:500});}
 
 // ================= BUSCADOR =================
 let choosing="to",searchTimer=null,searchResults=[];
@@ -603,7 +641,7 @@ function useGPS(user){
     if(pendingGPS){const w=pendingGPS;pendingGPS=null;setPoint(w,{...ME,name:"Mi ubicación",live:w==="from"});}
     else if(first){if(!FROM){FROM={...ME,name:"Mi ubicación",live:true};render();}if(mapReady&&!TO)map.easeTo({center:LL([ME.lat,ME.lon]),zoom:14.5,duration:600});}
     else if(FROM&&FROM.live&&hav([FROM.lat,FROM.lon],[ME.lat,ME.lon])>0.06&&VIEW!=="trip"&&VIEW!=="station"){FROM={...ME,name:"Mi ubicación",live:true};render(true);}
-    if(TRIP){TRIP.follow=p.coords.accuracy<300;const nx=TRIP.seq[TRIP.i+1];if(nx&&hav([ME.lat,ME.lon],ST[nx.st])<0.2&&p.coords.accuracy<150){TRIP.i++;render();if(navigator.vibrate)navigator.vibrate([60,40,60]);}}
+    if(TRIP)tripGPS(p.coords.accuracy);
   },err=>{watching=false;if(err.code===1&&(user||!FROM))toast("Sin permiso de ubicación. Actívalo en Ajustes › Safari › Ubicación, o elige tu punto de partida.",5000);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
 }
 $("gps").onclick=()=>useGPS(true);
@@ -714,6 +752,7 @@ window.MM={route,busOptions,BUSES,walkTable,walkRoute,ST,EXITS,LINES,nearest,bes
   const pp=(k,nk)=>{const v=sp.get(k);if(!v)return null;const [la,lo]=v.split(",").map(Number);return isFinite(la)&&isFinite(lo)?{lat:la,lon:lo,name:sp.get(nk)||"Punto compartido"}:null;};
   const t=pp("to","tn"),f=pp("from","fn");if(t){TO=t;VIEW="route";}if(f)FROM=f;
   setSheet("peek");initMap();render();
+  try{navigator.permissions&&navigator.permissions.query({name:"geolocation"}).then(s=>{if(s.state==="granted")useGPS(false);}).catch(()=>{});}catch(e){}
   const ios=/iPhone|iPad/.test(navigator.userAgent)&&!navigator.standalone;
   if(!store.get("welcomed",false)&&!t){$("welcome").classList.add("on");if(!ios)$("iosTip").style.display="none";}
   else useGPS(false);

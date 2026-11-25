@@ -92,6 +92,10 @@ h2{font-size:20px;margin:2px 0 10px}
 .status i{width:8px;height:8px;border-radius:50%;background:#1aa260}
 .status.off i{background:#c33}
 /* modo en el tren */
+.modes{display:flex;gap:6px;margin:2px 0 12px}
+.modes button{flex:1;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:9px 4px;font-size:14px;font-weight:700}
+.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.eta{display:flex;align-items:baseline;gap:10px;margin:2px 0 10px}.eta b{font-size:30px;font-weight:800;color:#1aa260}.eta span{color:var(--mut);font-size:14px}
 .trip-now{padding:14px;border-radius:16px;color:#fff;margin:4px 0 12px}
 .trip-now .k{font-size:13px;opacity:.9;font-weight:600}
 .trip-now .v{font-size:24px;font-weight:800;line-height:1.15;margin-top:2px}
@@ -238,11 +242,11 @@ textarea.rin{min-height:110px;resize:vertical}
 
 <div id="toast"></div>
 
-<script src="config.js?v=37"></script>
-<script src="data.js?v=37"></script>
-<script src="bus.js?v=37"></script>
+<script src="config.js?v=38"></script>
+<script src="data.js?v=38"></script>
+<script src="bus.js?v=38"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=37"></script>
+<script src="app.js?v=38"></script>
 <script data-goatcounter="https://metromoro.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
