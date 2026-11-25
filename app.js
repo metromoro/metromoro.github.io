@@ -112,6 +112,42 @@ function route(from,to,ov,opt){opt=opt||{};
   legs.push({type:"walk",last:true,from:nodes[end.id].st,min:end.walk,ex:end.ex});
   return{walkOnly:false,total:bt,legs,direct};
 }
+
+// ================= BUS (Metrobús y otras rutas, datos de OpenStreetMap) =================
+function dec5(s){let i=0,la=0,lo=0;const o=[];while(i<s.length){for(const k of[0,1]){let b,sh=0,r=0;do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5;}while(b>=32);const d=r&1?~(r>>1):r>>1;if(k)lo+=d;else la+=d;}o.push([la/1e5,lo/1e5]);}return o;}
+const BUSES=[];(function(){for(const [ref,name,op,sp,sn,lp] of(window.BUS_DATA||[])){const pts=dec5(sp),nm=(sn||"").split("|");if(pts.length<2)continue;BUSES.push({ref,name,op,stops:pts.map((p,i)=>({ll:p,name:nm[i]||"parada"})),line:lp?dec5(lp):[]});}})();
+const BUS_SPEED=14,BUS_WAIT=12,BUS_COLOR="#E87722";
+const busTitle=b=>b.op?b.name.split(":")[0]:"Metrobús "+b.ref;
+const busChip=b=>`<span class="chip" style="background:${BUS_COLOR}">🚌 ${esc(b.op?(b.ref||"Bus"):b.ref)}</span>`;
+function busRideMin(b,i,j){let d=0;for(let k=i;k<j;k++)d+=hav(b.stops[k].ll,b.stops[k+1].ll);return d*1.25/BUS_SPEED*60+(j-i)*0.3;}
+function busShape(b,i,j){const L=b.line.length>1?b.line:null;if(L){const A=nearIdx(L,b.stops[i].ll),B=nearIdx(L,b.stops[j].ll);if(A.i<B.i&&A.d<0.25&&B.d<0.25)return L.slice(A.i,B.i+1);}return b.stops.slice(i,j+1).map(s=>s.ll);}
+function busTrips(p,q,m1,m2){const out=[];for(const b of BUSES){const s=b.stops;let best=null;
+  for(let i=0;i<s.length-1;i++){const w1=walkMin(p,s[i].ll);if(w1>m1)continue;for(let j=i+1;j<s.length;j++){const w2=walkMin(s[j].ll,q);if(w2>m2)continue;const r=busRideMin(b,i,j),t=w1+BUS_WAIT+r+w2;if(!best||t<best.total)best={b,i,j,w1,w2,ride:r,total:t};}}
+  if(best)out.push(best);}return out.sort((x,y)=>x.total-y.total);}
+const busLeg=t=>({type:"bus",b:t.b,from:t.b.stops[t.i].name,to:t.b.stops[t.j].name,stops:t.j-t.i,min:t.ride,shape:busShape(t.b,t.i,t.j)});
+function busOptions(from,to){if(!BUSES.length)return[];const fp=[from.lat,from.lon],tp=[to.lat,to.lon],opts=[];
+  // 1) solo bus
+  const d=busTrips(fp,tp,12,12)[0];
+  if(d)opts.push({bus:true,walkOnly:false,direct:walkMin(fp,tp),total:d.total,legs:[{type:"walk",first:true,kind:"bus",to:d.b.stops[d.i].name,min:d.w1,ex:{ll:d.b.stops[d.i].ll,name:""}},busLeg(d),{type:"walk",last:true,kind:"bus",from:d.b.stops[d.j].name,min:d.w2,ex:{ll:d.b.stops[d.j].ll,name:""}}]});
+  const names=Object.keys(ST).filter(n=>cityAt(ST[n][0],ST[n][1])==="ccs");
+  // 2) Metro y luego bus (última milla)
+  const lastMile=[];for(const n of names){const t=busTrips(ST[n],tp,7,12)[0];if(t)lastMile.push({n,t});}
+  lastMile.sort((x,y)=>x.t.total-y.t.total);
+  for(const {n,t} of lastMile.slice(0,6)){const m=route(from,{lat:ST[n][0],lon:ST[n][1]},null,{force:true,endOnly:n});if(m.walkOnly||!m.legs.some(g=>g.type==="ride"))continue;
+    const last=m.legs[m.legs.length-1],stop=t.b.stops[t.i];const wx=walkMin(last.ex.ll,stop.ll);
+    const legs=m.legs.slice(0,-1).concat([{type:"walk",mid:true,toBus:true,from:last.from,ex:last.ex,stop:stop.name,ll:stop.ll,min:wx},busLeg(t),{type:"walk",last:true,kind:"bus",from:t.b.stops[t.j].name,min:t.w2,ex:{ll:t.b.stops[t.j].ll,name:""}}]);
+    opts.push({bus:true,walkOnly:false,direct:walkMin(fp,tp),total:m.total-last.min+wx+BUS_WAIT+t.ride+t.w2,legs});}
+  // 3) bus y luego Metro (primera milla)
+  const firstMile=[];for(const n of names){const t=busTrips(fp,ST[n],12,7)[0];if(t)firstMile.push({n,t});}
+  firstMile.sort((x,y)=>x.t.total-y.t.total);
+  for(const {n,t} of firstMile.slice(0,6)){const stop=t.b.stops[t.j],sp={lat:stop.ll[0],lon:stop.ll[1]};const m=route(sp,to,null,{force:true});if(m.walkOnly||!m.legs.some(g=>g.type==="ride"))continue;
+    const first=m.legs[0];const legs=[{type:"walk",first:true,kind:"bus",to:t.b.stops[t.i].name,min:t.w1,ex:{ll:t.b.stops[t.i].ll,name:""}},busLeg(t),{type:"walk",mid:true,toMetro:true,to:first.to,ex:first.ex,stop:stop.name,ll:stop.ll,min:first.min}].concat(m.legs.slice(1));
+    opts.push({bus:true,walkOnly:false,direct:walkMin(fp,tp),total:t.w1+BUS_WAIT+t.ride+m.total,legs});}
+  opts.sort((x,y)=>x.total-y.total);const seen=new Set();return opts.filter(o=>{const k=o.legs.map(g=>g.type==="bus"?"b"+g.b.ref+g.to:g.type==="ride"?g.line+g.to:"").join();if(seen.has(k))return false;seen.add(k);return true;}).slice(0,3);}
+function addBus(r){if(!TO||!FROM)return r;const bo=busOptions(FROM,TO);if(!bo.length)return r;
+  if(r.walkOnly&&r.direct<=15)return r;
+  const best=bo[0];if(best.total<r.total-5){const main=best;main.alts=[r,...(r.alts||[]),...bo.slice(1)].filter(x=>x!==main);r.alts=null;return main;}
+  r.alts=[...(r.alts||[]),...bo.filter(o=>o.total<=r.total+25)].sort((x,y)=>x.total-y.total).slice(0,5);return r;}
 const nearest=p=>{let b=null,bw=Infinity;for(const n in ST){const e=bestExit(p,n);if(e.w<bw){bw=e.w;b={n,...e};}}return b;};
 
 // tiempos reales a pie (por calles) hasta TODAS las salidas de las estaciones candidatas, en una sola consulta por extremo
@@ -329,11 +365,16 @@ $("sc").addEventListener("click",e=>{
   if(k[0]==="x"){const [n,i]=k.slice(1).split("|");const ex=EXITS[n][+i];setPoint("to",{lat:ex.ll[0],lon:ex.ll[1],name:`${n} · salida ${exLabel(ex)||(+i+1)}`});}
 });
 
-function legFlow(r){return r.legs.map(g=>g.type==="walk"?"🚶":g.type==="ride"?chip(g.line):"").filter(Boolean).join(" › ");}
+function legFlow(r){return r.legs.map(g=>g.type==="walk"?"🚶":g.type==="ride"?chip(g.line):g.type==="bus"?busChip(g.b):"").filter(Boolean).join(" › ");}
 function stepsHTML(r){
   let li="";
   r.legs.forEach(g=>{
-    if(g.type==="walk"&&g.first)li+=`<li><span class="ic walk">🚶</span><div>Camina a <b>${esc(g.to)}</b> ${chips(g.to)} y entra por ${exName(g.ex)}<span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""} · luego ~3 min esperando el tren</span><a class="link" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],g.ex.ll)}">Ver caminata en Google Maps ↗</a></div></li>`;
+    if(g.type==="walk"&&g.first&&g.kind==="bus")li+=`<li><span class="ic walk">🚶</span><div>Camina a la parada <b>${esc(g.to)}</b><span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""} · luego espera el bus (~${BUS_WAIT} min, puede tardar más)</span><a class="link" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],g.ex.ll)}">Ver caminata en Google Maps ↗</a></div></li>`;
+    else if(g.type==="walk"&&g.mid&&g.toBus)li+=`<li><span class="ic walk">🚶</span><div>Sal de <b>${esc(g.from)}</b> por ${exName(g.ex)} y camina a la parada <b>${esc(g.stop)}</b><span class="t">${fmt(g.min)} · luego espera el bus</span></div></li>`;
+    else if(g.type==="walk"&&g.mid&&g.toMetro)li+=`<li><span class="ic walk">🚶</span><div>Camina a <b>${esc(g.to)}</b> ${chips(g.to)} y entra por ${exName(g.ex)}<span class="t">${fmt(g.min)} · luego ~3 min esperando el tren</span></div></li>`;
+    else if(g.type==="bus")li+=`<li><span class="ic" style="background:${BUS_COLOR};color:#fff">🚌</span><div>Toma el <b>${esc(busTitle(g.b))}</b> en <b>${esc(g.from)}</b> y bájate en <b>${esc(g.to)}</b><span class="t">${g.stops} ${g.stops===1?"parada":"paradas"} · ${fmt(g.min)} · servicio irregular</span></div></li>`;
+    else if(g.type==="walk"&&g.last&&g.kind==="bus")li+=`<li><span class="ic walk">🏁</span><div>Bájate en <b>${esc(g.from)}</b> y camina a <b>${esc(TO.name)}</b><span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""}</span><a class="link" target="_blank" rel="noopener" href="${gmWalk(g.ex.ll,[TO.lat,TO.lon])}">Ver caminata en Google Maps ↗</a></div></li>`;
+    else if(g.type==="walk"&&g.first)li+=`<li><span class="ic walk">🚶</span><div>Camina a <b>${esc(g.to)}</b> ${chips(g.to)} y entra por ${exName(g.ex)}<span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""} · luego ~3 min esperando el tren</span><a class="link" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],g.ex.ll)}">Ver caminata en Google Maps ↗</a></div></li>`;
     else if(g.type==="ride"){const L=LINES[g.line];li+=`<li><span class="ic" style="background:${L.color};color:${L.dark?"#3a2b00":"#fff"}">${L.short}</span><div>Toma la <b>${L.name}</b> dirección <b>${esc(g.dir)}</b> y bájate en <b>${esc(g.to)}</b><span class="t">${g.stops} ${g.stops===1?"estación":"estaciones"} · ${fmt(g.min)}</span></div></li>`;}
     else if(g.type==="xfer"){const L=LINES[g.toLine];li+=`<li><span class="ic xfer">⇄</span><div>Transbordo ${g.from===g.to?"en <b>"+esc(g.from)+"</b>":"de <b>"+esc(g.from)+"</b> a <b>"+esc(g.to)+"</b> por el pasillo"} hacia la ${L.name}<span class="t">~${fmt(g.min)}</span></div></li>`;}
     else if(g.type==="walk"&&g.last)li+=`<li><span class="ic walk">🏁</span><div>Sal de <b>${esc(g.from)}</b> por ${exName(g.ex)} y camina a <b>${esc(TO.name)}</b><span class="t">${fmt(g.min)}${g.m?" · "+Math.round(g.m)+" m":""}</span><a class="link" target="_blank" rel="noopener" href="${gmWalk(g.ex.ll,[TO.lat,TO.lon])}">Ver caminata en Google Maps ↗</a></div></li>`;
@@ -345,16 +386,16 @@ function routeHTML(r){
   let h=`<div class="sum"><b>${fmt(r.total)}</b><span>llegas ~${clock(arr)}${r.walkOnly?" · a pie":" · a pie serían "+fmt(r.direct)}</span></div>`;
   if(!r.walkOnly)h+=`<div class="flow">${legFlow(r)}</div>`;
   if(!metroOpen()&&!r.walkOnly)h+=`<p class="hint" style="color:var(--acc);margin:6px 0 0">El Metro está cerrado ahora (abre 5:30 a. m.).</p>`;
-  h+=`<div class="btns">${r.walkOnly?`<a class="btn pri" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],[TO.lat,TO.lon])}">Ir caminando ↗</a>`:`<button class="btn pri" id="bTrip">▶ Iniciar viaje</button>`}<button class="btn" id="bShare">Compartir</button></div>`;
+  h+=`<div class="btns">${r.walkOnly||!r.legs.some(g=>g.type==="ride")?(r.walkOnly?`<a class="btn pri" target="_blank" rel="noopener" href="${gmWalk([FROM.lat,FROM.lon],[TO.lat,TO.lon])}">Ir caminando ↗</a>`:""):`<button class="btn pri" id="bTrip">▶ Iniciar viaje</button>`}<button class="btn" id="bShare">Compartir</button></div>`;
   h+=`<button class="from" id="bFrom2"><span class="d"></span><span style="flex:1"><span style="display:block;font-size:12px;color:var(--mut)">Desde</span><b>${esc(FROM.name)}</b></span><span class="link">Cambiar</span></button>`;
   if(r.walkOnly)h+=`<p class="hint">Te queda más rápido ir caminando que tomar el Metro.</p>`;else h+=stepsHTML(r);
   if(r.alts&&r.alts.length){h+=`<div class="sec">${r.walkOnly?"Si prefieres ir en Metro":"Otras opciones"}</div>`;
-    r.alts.forEach((a,i)=>{if(a.walkOnly){h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">🚶</span><div class="tx"><div class="t1">${fmt(a.total)} · ir caminando</div></div><span class="t2">›</span></div>`;return;}const f=a.legs[0],l=a.legs[a.legs.length-1];const lines=[...new Set(a.legs.filter(g=>g.type==="ride").map(g=>g.line))];
+    r.alts.forEach((a,i)=>{if(a.bus||a.legs&&a.legs.some(g=>g.type==="bus")||!a.walkOnly&&a.legs&&a.legs[0].kind==="bus"){h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">${legFlow(a)}</span><div class="tx"><div class="t1">${fmt(a.total)} · ${a.legs.some(g=>g.type==="ride")?"Metro + bus":"en bus"}</div><div class="t2">${esc(a.legs.filter(g=>g.type==="bus").map(g=>busTitle(g.b)).join(", "))} · servicio irregular</div></div><span class="t2">›</span></div>`;return;}if(a.walkOnly){h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">🚶</span><div class="tx"><div class="t1">${fmt(a.total)} · ir caminando</div></div><span class="t2">›</span></div>`;return;}const f=a.legs[0],l=a.legs[a.legs.length-1];const lines=[...new Set(a.legs.filter(g=>g.type==="ride").map(g=>g.line))];
       h+=`<div class="row" data-alt="${i}" style="cursor:pointer"><span class="em">${lines.map(L=>`<span class="chip${LINES[L].dark?" y":""}" style="background:${LINES[L].color}">${LINES[L].short}</span>`).join("")}</span><div class="tx"><div class="t1">${fmt(a.total)} · ${esc(f.to)} → ${esc(l.from)}</div><div class="t2">${fmt(f.min)} a pie al inicio · ${fmt(l.min)} a pie al final</div></div><span class="t2">›</span></div>`;});}
   h+=`<div class="btns"><button class="btn sm" data-save="home">🏠 Guardar como Casa</button><button class="btn sm" data-save="work">💼 Guardar como Trabajo</button></div>`;
   showAd(r.walkOnly?[]:r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]),r.ad);
   h+=`<button class="rep" data-report="ruta">⚠️ ¿Algo está mal en esta ruta? Repórtalo</button>`;
-  h+=`<p class="note">Tiempos estimados: tren ≈30 km/h, 3 min de espera, 4–6 min por transbordo. No refleja estaciones cerradas ni fallas del servicio.</p>`;
+  h+=`<p class="note">Tiempos estimados: tren ≈30 km/h, 3 min de espera, 4–6 min por transbordo${r.legs&&r.legs.some(g=>g.type==="bus")||(r.alts||[]).some(a=>a.bus)?"; bus ≈14 km/h y ~12 min de espera (el Metrobús suele tener pocas unidades). Rutas de bus de OpenStreetMap":""}. No refleja estaciones cerradas ni fallas del servicio.</p>`;
   return h;
 }
 let lastTracked="";
@@ -377,13 +418,13 @@ function withAlts(r,ov){
 function renderRoute(tok,keepView){
   VIEW="route";const a=[FROM.lat,FROM.lon],b=[TO.lat,TO.lon];const r=route(FROM,TO);
   if(!r.walkOnly)r.ad=pickAd(r.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to]));
-  withAlts(r,null);showRoute(r,tok,keepView,false);
+  withAlts(r,null);const R1=addBus(r);showRoute(R1,tok,keepView,false);
   // con señal: recalcula con las caminatas reales para escoger la mejor estación y la mejor salida
   Promise.all([walkTable(a,true),walkTable(b,false)]).then(([o,d])=>{
     if(tok!==renderTok||VIEW!=="route"||(!o&&!d))return;
-    const ov={o,d};const r2=route(FROM,TO,ov);r2.ad=r.ad||(!r2.walkOnly?pickAd(r2.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to])):null);withAlts(r2,ov);
+    const ov={o,d};const r2=route(FROM,TO,ov);r2.ad=r.ad||(!r2.walkOnly?pickAd(r2.legs.filter(g=>g.type==="ride").flatMap(g=>[g.from,g.to])):null);withAlts(r2,ov);const R2=addBus(r2);
     const same=!r.walkOnly&&!r2.walkOnly&&r.legs[0].to===r2.legs[0].to&&r.legs[r.legs.length-1].from===r2.legs[r2.legs.length-1].from;
-    showRoute(r2,tok,keepView||same,true);
+    showRoute(R2,tok,keepView||same,true);
   });
 }
 function showRoute(r,tok,keepView,final){
@@ -393,15 +434,16 @@ function showRoute(r,tok,keepView,final){
   const pts=[a,b];setData("rex",fc([]));
   if(r.walkOnly){netOp(1);setData("route",fc([]));walkRoute(a,b).then(w=>{if(tok!==renderTok)return;setData("walk",fc([lineF(w?w.path:[a,b])]));});if(!keepView)fit(pts);return;}
   netOp(.28);
-  const rides=r.legs.filter(g=>g.type==="ride").map(g=>{const s=pathShape(g.line,g.path);s.forEach(p=>pts.push(p));return lineF(s,{c:LINES[g.line].color});});
+  const rides=r.legs.filter(g=>g.type==="ride"||g.type==="bus").map(g=>{const s=g.type==="bus"?g.shape:pathShape(g.line,g.path);s.forEach(p=>pts.push(p));return lineF(s,{c:g.type==="bus"?BUS_COLOR:LINES[g.line].color});});
+  const mids=r.legs.filter(g=>g.mid).map(g=>lineF([g.ex.ll,g.ll]));
   setData("route",fc(rides));
   const first=r.legs[0],last=r.legs[r.legs.length-1];pts.push(first.ex.ll,last.ex.ll);
-  setData("rex",fc([ptF(first.ex.ll,{k:"in",t:"Entra"+(exLabel(first.ex)?" · "+exLabel(first.ex):"")}),ptF(last.ex.ll,{k:"out",t:"Sal"+(exLabel(last.ex)?" · "+exLabel(last.ex):"")})]));
-  setData("walk",fc([lineF([a,first.ex.ll]),lineF([last.ex.ll,b])]));
+  setData("rex",fc([ptF(first.ex.ll,{k:"in",t:first.kind==="bus"?"Parada":"Entra"+(exLabel(first.ex)?" · "+exLabel(first.ex):"")}),ptF(last.ex.ll,{k:"out",t:last.kind==="bus"?"Bájate aquí":"Sal"+(exLabel(last.ex)?" · "+exLabel(last.ex):"")})]));
+  setData("walk",fc([lineF([a,first.ex.ll]),lineF([last.ex.ll,b]),...mids]));
   if(!keepView)fit(pts);
   Promise.all([walkRoute(a,first.ex.ll),walkRoute(last.ex.ll,b)]).then(([w1,w2])=>{
     if(tok!==renderTok)return;
-    setData("walk",fc([lineF(w1?w1.path:[a,first.ex.ll]),lineF(w2?w2.path:[last.ex.ll,b])]));
+    setData("walk",fc([lineF(w1?w1.path:[a,first.ex.ll]),lineF(w2?w2.path:[last.ex.ll,b]),...mids]));
     let ch=false;if(w1&&!first.m){first.m=w1.m;if(!final){r.total+=w1.min-first.min;first.min=w1.min;}ch=true;}
     if(w2&&!last.m){last.m=w2.m;if(!final){r.total+=w2.min-last.min;last.min=w2.min;}ch=true;}
     if(ch&&VIEW==="route"){const s2=$("sc").scrollTop;$("sc").innerHTML=routeHTML(r);bindRoute(r);$("sc").scrollTop=s2;}
@@ -464,8 +506,8 @@ function renderStation(){
 async function share(r){track("compartir");
   const u=new URL(URL_BASE);u.searchParams.set("to",`${TO.lat.toFixed(5)},${TO.lon.toFixed(5)}`);u.searchParams.set("tn",TO.name);
   if(FROM&&!FROM.live){u.searchParams.set("from",`${FROM.lat.toFixed(5)},${FROM.lon.toFixed(5)}`);u.searchParams.set("fn",FROM.name);}
-  let txt=`Cómo llegar a ${TO.name} en Metro (${fmt(r.total)}):`;
-  if(!r.walkOnly){for(const g of r.legs){if(g.type==="walk"&&g.first)txt+=`\n• Entra en ${g.to}${exLabel(g.ex)?" por la salida "+exLabel(g.ex):""}`;else if(g.type==="ride")txt+=`\n• ${LINES[g.line].name} dirección ${g.dir} hasta ${g.to}`;else if(g.type==="walk"&&g.last)txt+=`\n• Sal${exLabel(g.ex)?" por la salida "+exLabel(g.ex):""} y camina ${fmt(g.min)}`;}}
+  let txt=`Cómo llegar a ${TO.name} en transporte público (${fmt(r.total)}):`;
+  if(!r.walkOnly){for(const g of r.legs){if(g.type==="walk"&&g.first)txt+=`\n• Entra en ${g.to}${exLabel(g.ex)?" por la salida "+exLabel(g.ex):""}`;else if(g.type==="ride")txt+=`\n• ${LINES[g.line].name} dirección ${g.dir} hasta ${g.to}`;else if(g.type==="bus")txt+=`\n• ${busTitle(g.b)} de ${g.from} a ${g.to}`;else if(g.type==="walk"&&g.last)txt+=`\n• Sal${exLabel(g.ex)?" por la salida "+exLabel(g.ex):""} y camina ${fmt(g.min)}`;}}
   else txt+=`\n• Mejor ve caminando`;
   txt+=`\n\nVe la ruta en el mapa: ${u.toString()}`;
   if(navigator.share){try{await navigator.share({title:"Metro Moro",text:txt});return;}catch(e){if(e.name==="AbortError")return;}}
@@ -665,7 +707,7 @@ async function downloadMap(){
 }
 if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 
-window.MM={route,walkTable,walkRoute,ST,EXITS,LINES,nearest,bestExit};
+window.MM={route,busOptions,BUSES,walkTable,walkRoute,ST,EXITS,LINES,nearest,bestExit};
 // ================= ARRANQUE =================
 (function start(){
   const sp=new URLSearchParams(location.search);
