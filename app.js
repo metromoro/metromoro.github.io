@@ -42,7 +42,7 @@ const chips=n=>[...stationLines[n]].map(chip).join(" ");
 function pickAd(stations){const ads=CFG.ads||[];if(!ads.length)return null;const m=ads.filter(a=>a.stations&&a.stations.some(s=>stations.includes(s)));const pool=m.length?m:ads.filter(a=>!a.stations);return pool.length?pool[Math.floor(Math.random()*pool.length)]:null;}
 const LOGO=`<svg viewBox="-6 -6 112 112" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="square"><rect x="0" y="0" width="100" height="100"/><circle cx="50" cy="50" r="50"/><path d="M0 0 L100 100 M100 0 L0 100 M50 0 L0 100 M50 0 L100 100"/></g></svg>`;
 const SIGN_MAIL=CONTACT.replace(/^mailto:/,"").split("?")[0];
-const SIGN=`<span class="sign"><span class="mmt">M</span><span><small>Creador de Metro Moro</small><b>Morowix</b></span></span><div class="sdata"><div>Ing. Antonio Sira</div>${(CFG.phone||"").trim()?`<div>📞 ${esc(CFG.phone)}</div>`:""}${SIGN_MAIL?`<div>✉️ ${esc(SIGN_MAIL)}</div>`:""}</div>`;
+const SIGN=`<a class="sign" href="https://x.com/morowix" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="mmt">M</span><span><small>Creador de Metro Moro</small><b>@morowix</b></span></a><div class="sdata"><div>𝕏 x.com/morowix</div></div>`;
 function contactLine(url){const mail=(url||"").replace(/^mailto:/,"").split("?")[0];const ph=(CFG.phone||"").trim();
   return `<span class="act">${ph?`📞 ${esc(ph)}`:""}${ph&&mail?" · ":""}${mail?`✉️ ${esc(mail)}`:""}</span>`;}
 // franja de publicidad fija arriba del panel: siempre a la vista, una sola línea, rota cada 9 s
@@ -119,6 +119,9 @@ const BUSES=[];(function(){for(const [ref,name,op,sp,sn,lp] of(window.BUS_DATA||
 const BUS_SPEED=14,BUS_WAIT=12,BUS_COLOR="#E87722";
 const busTitle=b=>b.op?b.name.split(":")[0]:"Metrobús "+b.ref;
 const busChip=b=>`<span class="chip" style="background:${BUS_COLOR}">🚌 ${esc(b.op?(b.ref||"Bus"):b.ref)}</span>`;
+const mts=km=>{const m=km*1000*1.3;return m<1000?Math.round(m/10)*10+" m":(m/1000).toFixed(1).replace(".",",")+" km";};
+function nearBus(p){let b=null,bd=Infinity;for(const bu of BUSES)for(const s of bu.stops){const d=hav(p,s.ll);if(d<bd){bd=d;b=s;}}if(!b)return null;
+  const rs=[];for(const bu of BUSES)if(bu.stops.some(s=>hav(s.ll,b.ll)<0.08)&&!rs.includes(bu))rs.push(bu);return{name:b.name,ll:b.ll,km:bd,routes:rs};}
 function busRideMin(b,i,j){let d=0;for(let k=i;k<j;k++)d+=hav(b.stops[k].ll,b.stops[k+1].ll);return d*1.25/BUS_SPEED*60+(j-i)*0.3;}
 function busShape(b,i,j){const L=b.line.length>1?b.line:null;if(L){const A=nearIdx(L,b.stops[i].ll),B=nearIdx(L,b.stops[j].ll);if(A.i<B.i&&A.d<0.25&&B.d<0.25)return L.slice(A.i,B.i+1);}return b.stops.slice(i,j+1).map(s=>s.ll);}
 function busTrips(p,q,m1,m2){const out=[];for(const b of BUSES){const s=b.stops;let best=null;
@@ -237,7 +240,7 @@ function initMap(){
   map.on("style.load",()=>{if(!map.getSource("net")){overlay();if(mapReady)render(true);}});
   map.on("load",()=>{
     for(const id of["st","ex"]){map.on("click",id,e=>{const f=e.features[0];if(f)openStation(f.properties.n);});map.on("mouseenter",id,()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave",id,()=>map.getCanvas().style.cursor="");}
-    map.on("click",e=>{if(map.getLayer("st")&&map.queryRenderedFeatures(e.point,{layers:["st","ex"]}).length)return;
+    map.on("click",e=>{if(map.getLayer("st")&&map.queryRenderedFeatures(e.point,{layers:["st","ex"].concat(map.getLayer("near")?["near"]:[])}).length)return;
       if(pickOnMap){const w=pickOnMap;pickOnMap=null;setPoint(w,{lat:e.lngLat.lat,lon:e.lngLat.lng,name:"Punto en el mapa"});return;}
       if(VIEW==="trip")return;
       const f=map.queryRenderedFeatures([[e.point.x-8,e.point.y-8],[e.point.x+8,e.point.y+8]]).find(x=>x.sourceLayer==="poi"&&x.properties&&(x.properties.name||x.properties["name:es"]));
@@ -282,6 +285,11 @@ function overlay(){
     map.addLayer({id:"st",type:"circle",source:"st",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,["case",["==",["get","x"],1],4,3],15,["case",["==",["get","x"],1],9,7]],"circle-color":["case",["==",["get","x"],1],"#fff",["get","c"]],"circle-stroke-color":["case",["==",["get","x"],1],"#16171b","#fff"],"circle-stroke-width":["case",["==",["get","x"],1],2.5,2]}});
     map.addLayer({id:"st-lbl",type:"symbol",source:"st",layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],11,11,15,14],"text-offset":[0.9,0],"text-anchor":"left","text-optional":true,"symbol-sort-key":["-",1,["get","x"]]},paint:{"text-color":LBLDARK()?"#fff":"#16171b","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
     map.addLayer({id:"rex-lbl",type:"symbol",source:"rex",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.3],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"in"],"#137a46","#b01f18"],"text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
+    map.addSource("near",{type:"geojson",data:fc([])});
+    map.on("click","near",e=>{const f=e.features[0];if(f&&f.properties.k==="m")openStation(f.properties.n);else{const bn=$("busNear");if(bn)bn.click();}});
+    map.addLayer({id:"near",type:"circle",source:"near",paint:{"circle-radius":9,"circle-color":["case",["==",["get","k"],"m"],"#d7261e",BUS_COLOR],"circle-stroke-color":"#fff","circle-stroke-width":3}});
+    map.addLayer({id:"near-ic",type:"symbol",source:"near",layout:{"text-field":["case",["==",["get","k"],"m"],"M","B"],"text-font":["Noto Sans Bold"],"text-size":11,"text-allow-overlap":true,"text-ignore-placement":true},paint:{"text-color":"#fff"}});
+    map.addLayer({id:"near-lbl",type:"symbol",source:"near",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.4],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"m"],"#b01f18","#a14d0f"],"text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
     metroVis(SHOWNET||MODE==="metro");
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
@@ -343,7 +351,7 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));if(VIEW!=="idle"||TO)setData("near",fc([]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
   if(VIEW!=="place")marker("place",null);
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="tripend")return renderTripEnd();
@@ -359,10 +367,14 @@ function render(keepView){
 }
 function renderIdle(tok){
   VIEW="idle";let h="";
-  if(FROM){const a=[FROM.lat,FROM.lon],nb=nearest(a);
-    h+=`<div class="row" id="nearRow"><span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(nb.n)} ${chips(nb.n)}</div><div class="t2">${fmt(nb.w)} a pie hasta ${exName(nb.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,nb.ex.ll)}">Ir ↗</a></div>`;
+  if(FROM){const a=[FROM.lat,FROM.lon],nb=nearest(a),bb=nearBus(a);
+    const mRow=x=>`<span class="em">Ⓜ️</span><div class="tx"><div class="t2">Entrada al Metro más cercana</div><div class="t1">${esc(x.n)} ${chips(x.n)}</div><div class="t2">${mts(hav(a,x.ex.ll))} · ${fmt(x.w)} a pie · ${exName(x.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,x.ex.ll)}">Ir ↗</a>`;
+    h+=`<div class="row" id="nearRow">${mRow(nb)}</div>`;
+    if(bb)h+=`<div class="row" id="busNear" data-busi="${BUSES.indexOf(bb.routes[0])}" style="cursor:pointer"><span class="em">🚏</span><div class="tx"><div class="t2">Parada de bus más cercana</div><div class="t1">${esc(bb.name)}</div><div class="t2">${mts(bb.km)} · ${fmt(walkMin(a,bb.ll))} a pie · ${bb.routes.slice(0,4).map(busChip).join(" ")}${bb.routes.length>4?" +"+(bb.routes.length-4):""}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,bb.ll)}">Ir ↗</a></div>`;
+    const setNear=x=>{if(!mapReady||tok!==renderTok||VIEW!=="idle")return;const f=[ptF(x.ex.ll,{k:"m",n:x.n,t:`${x.n} · ${mts(hav(a,x.ex.ll))}`})];if(bb)f.push(ptF(bb.ll,{k:"b",t:`${bb.name} · ${mts(bb.km)}`}));setData("near",fc(f));};
+    setTimeout(()=>setNear(nb),0);
     walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};
-      if(best){const row=$("nearRow");if(row)row.innerHTML=`<span class="em">Ⓜ️</span><div class="tx"><div class="t2">Estación más cercana</div><div class="t1">${esc(best.n)} ${chips(best.n)}</div><div class="t2">${fmt(best.w)} a pie hasta ${exName(best.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,best.ex.ll)}">Ir ↗</a>`;}
+      if(best){const row=$("nearRow");if(row)row.innerHTML=mRow(best);setNear(best);}
       walkRoute(a,(best||nb).ex.ll).then(w=>{if(w&&tok===renderTok&&mapReady&&(MODE==="metro"||SHOWNET))setData("walk",fc([lineF(w.path)]));});});
   }else h+=`<div class="row"><span class="em">📍</span><div class="tx"><div class="t1">Activa tu ubicación</div><div class="t2">Así te digo cuál es tu estación más cercana.</div></div><button class="btn sm" id="bGps">Activar</button></div>`;
   h+=`<div class="row"><span class="em">🕒</span><div class="tx">${statusHTML()}<div class="t2">Todos los días, 5:30 a. m. – 11:00 p. m.</div></div></div>`;
@@ -380,6 +392,7 @@ function renderIdle(tok){
   $("sc").innerHTML=h;setSheet(sheetState==="full"?"half":sheetState);
   const g=$("bGps");if(g)g.onclick=()=>useGPS(true);
   const cf=$("cafeIdle");if(cf)cf.onclick=openCafe;
+  const bn=$("busNear");if(bn)bn.onclick=e=>{if(e.target.closest("a"))return;const i=+bn.dataset.busi;if(i>=0)openBus(i);};
 }
 $("sc").addEventListener("click",e=>{
   const ed=e.target.closest("[data-edit]");if(ed){e.stopPropagation();openPicker(ed.dataset.edit);return;}
@@ -797,8 +810,7 @@ function openReport(kind){
       const j=await r.json().catch(()=>({}));ok=r.ok&&String(j.success)!=="false";}catch(e){}}
     if(ok){$("menu").classList.remove("on");toast("¡Gracias! Recibimos tu reporte.",4000);return;}
     btn.disabled=false;btn.textContent="Enviar reporte";
-    if(mail){location.href="mailto:"+mail+"?subject="+encodeURIComponent(body._subject)+"&body="+encodeURIComponent((sel?"Tipo: "+sel+"\n":"")+(msg?msg+"\n":"")+(who?"Contacto: "+who+"\n":"")+"\n"+ctx);toast("Se abrió tu correo para enviarlo.");}
-    else toast("No se pudo enviar ahora. Intenta más tarde.");
+    {toast("No se pudo enviar. Revisa tu conexión e inténtalo de nuevo, o escríbenos en X: @morowix",4500);}
   };
 }
 
