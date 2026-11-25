@@ -289,7 +289,7 @@ function overlay(){
     map.on("click","near",e=>{const f=e.features[0];if(f&&f.properties.k==="m")openStation(f.properties.n);else{const bn=$("busNear");if(bn)bn.click();}});
     map.addLayer({id:"near",type:"circle",source:"near",paint:{"circle-radius":9,"circle-color":["case",["==",["get","k"],"m"],"#d7261e",BUS_COLOR],"circle-stroke-color":"#fff","circle-stroke-width":3}});
     map.addLayer({id:"near-ic",type:"symbol",source:"near",layout:{"text-field":["case",["==",["get","k"],"m"],"M","B"],"text-font":["Noto Sans Bold"],"text-size":11,"text-allow-overlap":true,"text-ignore-placement":true},paint:{"text-color":"#fff"}});
-    map.addLayer({id:"near-lbl",type:"symbol",source:"near",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":[0,1.4],"text-anchor":"top","text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"m"],"#b01f18","#a14d0f"],"text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
+    map.addLayer({id:"near-lbl",type:"symbol",source:"near",layout:{"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12,"text-offset":["case",["==",["get","k"],"m"],["literal",[0,-1.3]],["literal",[0,1.3]]],"text-anchor":["case",["==",["get","k"],"m"],"bottom","top"],"text-allow-overlap":true},paint:{"text-color":["case",["==",["get","k"],"m"],"#b01f18","#a14d0f"],"text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":2}});
     metroVis(SHOWNET||MODE==="metro");
     map.setFilter("st-lbl",map.getZoom()>=13.3?null:["==",["get","x"],1]);
 }
@@ -371,7 +371,7 @@ function renderIdle(tok){
     const mRow=x=>`<span class="em">Ⓜ️</span><div class="tx"><div class="t2">Entrada al Metro más cercana</div><div class="t1">${esc(x.n)} ${chips(x.n)}</div><div class="t2">${mts(hav(a,x.ex.ll))} · ${fmt(x.w)} a pie · ${exName(x.ex)}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,x.ex.ll)}">Ir ↗</a>`;
     h+=`<div class="row" id="nearRow">${mRow(nb)}</div>`;
     if(bb)h+=`<div class="row" id="busNear" data-busi="${BUSES.indexOf(bb.routes[0])}" style="cursor:pointer"><span class="em">🚏</span><div class="tx"><div class="t2">Parada de bus más cercana</div><div class="t1">${esc(bb.name)}</div><div class="t2">${mts(bb.km)} · ${fmt(walkMin(a,bb.ll))} a pie · ${bb.routes.slice(0,4).map(busChip).join(" ")}${bb.routes.length>4?" +"+(bb.routes.length-4):""}</div></div><a class="btn sm" target="_blank" rel="noopener" href="${gmWalk(a,bb.ll)}">Ir ↗</a></div>`;
-    const setNear=x=>{if(!mapReady||tok!==renderTok||VIEW!=="idle")return;const f=[ptF(x.ex.ll,{k:"m",n:x.n,t:`${x.n} · ${mts(hav(a,x.ex.ll))}`})];if(bb)f.push(ptF(bb.ll,{k:"b",t:`${bb.name} · ${mts(bb.km)}`}));setData("near",fc(f));};
+    const setNear=x=>{if(!mapReady||tok!==renderTok||VIEW!=="idle")return;const f=[ptF(x.ex.ll,{k:"m",n:x.n,t:`Metro ${x.n} · ${mts(hav(a,x.ex.ll))}`})];if(bb)f.push(ptF(bb.ll,{k:"b",t:`Parada ${bb.name} · ${mts(bb.km)}`}));setData("near",fc(f));};
     setTimeout(()=>setNear(nb),0);
     walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};
       if(best){const row=$("nearRow");if(row)row.innerHTML=mRow(best);setNear(best);}
