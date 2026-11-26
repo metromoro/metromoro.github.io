@@ -126,10 +126,13 @@ const NAVY="#1d3557";
 const mtx=m=>m<1000?Math.round(m/10)*10+" m":(m/1000).toFixed(1).replace(".",",")+" km";
 let nearMarks=[];
 function nearMk(list){nearMarks.forEach(m=>m.remove());nearMarks=[];if(!map||!list)return;
-  for(const t of list){const el=document.createElement("button");el.className="nchip"+(t.kind==="bus"?" b":"");
-    el.innerHTML=`<span class="ci">${t.kind==="bus"?"🚌":"M"}</span><span><b>${esc(t.short||t.name)}</b><small>${t.min?fmt(t.min)+" · ":""}${mtx(t.m)}</small></span>`;
+  const lowIx=list.length>1?(list[1].ll[0]<=list[0].ll[0]?1:0):-1;
+  list.forEach((t,ix)=>{const down=ix===lowIx;
+    const el=document.createElement("div");el.className="nmk"+(down?" dn":"")+(t.kind==="bus"?" b":"");
+    el.innerHTML=`<button class="nchip"><span class="ci">${t.kind==="bus"?"🚌":t.kind==="metro"?"M":"📍"}</span><span><b>${esc(t.short||t.name)}</b><small>${t.min?fmt(t.min)+" · ":""}${mtx(t.m)}</small></span></button><span class="stem"></span><span class="ndot"></span>`;
     el.onclick=e=>{e.stopPropagation();openWalk(t);};
-    nearMarks.push(new maplibregl.Marker({element:el,anchor:"bottom"}).setLngLat(LL(t.ll)).addTo(map));}}
+    nearMarks.push(new maplibregl.Marker({element:el,anchor:down?"top":"bottom",offset:[0,down?-7:7]}).setLngLat(LL(t.ll)).addTo(map));});}
+let nearFitted=false;
 function busRideMin(b,i,j){let d=0;for(let k=i;k<j;k++)d+=hav(b.stops[k].ll,b.stops[k+1].ll);return d*1.25/BUS_SPEED*60+(j-i)*0.3;}
 function busShape(b,i,j){const L=b.line.length>1?b.line:null;if(L){const A=nearIdx(L,b.stops[i].ll),B=nearIdx(L,b.stops[j].ll);if(A.i<B.i&&A.d<0.25&&B.d<0.25)return L.slice(A.i,B.i+1);}return b.stops.slice(i,j+1).map(s=>s.ll);}
 function busTrips(p,q,m1,m2){const out=[];for(const b of BUSES){const s=b.stops;let best=null;
@@ -380,7 +383,7 @@ function renderIdle(tok){
       ?`<button class="ncard" data-walk="m"><span class="nk"><span class="nic" style="background:${NAVY}">M</span>Metro</span><span class="nn">${esc(t.name)}</span><span class="nl">${chips(t.st)}</span><span class="nt">${fmt(t.min)} <small>· ${mtx(t.m)}</small></span><span class="nd">Entra por ${exLabel(t.ex)?esc(exLabel(t.ex)):"la salida más cercana"}</span><span class="ngo">🚶 Cómo llegar</span></button>`
       :`<button class="ncard" data-walk="b"><span class="nk"><span class="nic" style="background:${BUS_COLOR}">🚌</span>Parada</span><span class="nn">${esc(t.name)}</span><span class="nl">${t.routes.slice(0,3).map(busChip).join(" ")}${t.routes.length>3?` <small>+${t.routes.length-3}</small>`:""}</span><span class="nt">${fmt(t.min)} <small>· ${mtx(t.m)}</small></span><span class="nd">${t.routes.length} ${t.routes.length===1?"ruta pasa":"rutas pasan"} aquí</span><span class="ngo">🚶 Cómo llegar</span></button>`;
     let MT=mT(nb);
-    const paint=()=>{const g=$("nearGrid");if(g)g.innerHTML=card(MT)+(bT?card(bT):"");if(g)g.querySelectorAll("[data-walk]").forEach(c=>c.onclick=()=>openWalk(c.dataset.walk==="m"?MT:bT));if(mapReady&&tok===renderTok&&VIEW==="idle")nearMk([MT,bT].filter(Boolean));};
+    const paint=()=>{const g=$("nearGrid");if(g)g.innerHTML=card(MT)+(bT?card(bT):"");if(g)g.querySelectorAll("[data-walk]").forEach(c=>c.onclick=()=>openWalk(c.dataset.walk==="m"?MT:bT));if(mapReady&&tok===renderTok&&VIEW==="idle"){nearMk([MT,bT].filter(Boolean));if(!nearFitted&&ME&&!TO){nearFitted=true;fit([a,MT.ll].concat(bT?[bT.ll]:[]));}}};
     h+=`<div class="sec">Cerca de ti</div><div class="near2" id="nearGrid"></div>`;
     setTimeout(paint,0);
     walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};

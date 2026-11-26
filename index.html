@@ -226,10 +226,14 @@ textarea.rin{min-height:110px;resize:vertical}
 .ncard .ngo{margin-top:4px;background:var(--ink);color:var(--bg);border-radius:999px;padding:8px 6px;font-size:13px;font-weight:700;text-align:center}
 @media(max-width:340px){.near2{grid-template-columns:1fr}}
 /* marcador en el mapa */
-.nchip{all:unset;display:flex;align-items:center;gap:7px;background:#fff;color:#16171b;border-radius:999px;padding:4px 11px 4px 4px;box-shadow:0 3px 12px rgba(0,0,0,.28);font:600 12px/1.15 system-ui,-apple-system,sans-serif;white-space:nowrap;cursor:pointer;position:relative;margin-bottom:8px}
-.nchip::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:#fff;border-bottom:0}
+.nmk{display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.nmk.dn{flex-direction:column-reverse}
+.nmk .stem{width:2px;height:12px;background:#1d3557}.nmk.b .stem{background:#E87722}
+.nmk .ndot{width:14px;height:14px;border-radius:50%;background:#1d3557;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);box-sizing:border-box}
+.nmk.b .ndot{background:#E87722}
+.nchip{all:unset;display:flex;align-items:center;gap:7px;background:#fff;color:#16171b;border-radius:999px;padding:4px 11px 4px 4px;box-shadow:0 3px 12px rgba(0,0,0,.28);font:600 12px/1.15 system-ui,-apple-system,sans-serif;white-space:nowrap;cursor:pointer}
 .nchip .ci{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#1d3557;color:#fff;font-size:12px;font-weight:800}
-.nchip.b .ci{background:#E87722}
+.nmk.b .ci{background:#E87722}
 .nchip b{display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis}.nchip small{display:block;color:#666a73;font-weight:500;font-size:11px}
 /* vista caminar */
 .wkhd{display:flex;gap:12px;align-items:flex-start;margin:4px 0 10px}.wkhd .nic{width:40px;height:40px;border-radius:12px;font-size:18px}
@@ -284,11 +288,11 @@ textarea.rin{min-height:110px;resize:vertical}
 
 <div id="toast"></div>
 
-<script src="config.js?v=48"></script>
-<script src="data.js?v=48"></script>
-<script src="bus.js?v=48"></script>
+<script src="config.js?v=49"></script>
+<script src="data.js?v=49"></script>
+<script src="bus.js?v=49"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=48"></script>
+<script src="app.js?v=49"></script>
 <script data-goatcounter="https://metromoro.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
