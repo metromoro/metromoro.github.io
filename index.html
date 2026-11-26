@@ -212,6 +212,34 @@ textarea.rin{min-height:110px;resize:vertical}
   #welcome .wcard{background:var(--bg);border-radius:24px;padding:32px;box-shadow:var(--sh)}
   .full .ptop{padding:14px 16px}
 }
+
+/* cerca de ti */
+.near2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 10px}
+.ncard{all:unset;box-sizing:border-box;background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:5px;cursor:pointer;min-width:0;transition:transform .12s}
+.ncard:active{transform:scale(.97)}
+.ncard .nk{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.nic{width:26px;height:26px;border-radius:9px;display:inline-grid;place-items:center;color:#fff;font-size:13px;font-weight:800;flex:none}
+.ncard .nn{font-weight:700;font-size:15px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ncard .nl{min-height:20px;font-size:12px}
+.ncard .nt{font-size:20px;font-weight:800;letter-spacing:-.02em}.ncard .nt small{font-size:12px;font-weight:500;color:var(--mut);letter-spacing:0}
+.ncard .nd{font-size:12px;color:var(--mut);line-height:1.3}
+.ncard .ngo{margin-top:4px;background:var(--ink);color:var(--bg);border-radius:999px;padding:8px 6px;font-size:13px;font-weight:700;text-align:center}
+@media(max-width:340px){.near2{grid-template-columns:1fr}}
+/* marcador en el mapa */
+.nchip{all:unset;display:flex;align-items:center;gap:7px;background:#fff;color:#16171b;border-radius:999px;padding:4px 11px 4px 4px;box-shadow:0 3px 12px rgba(0,0,0,.28);font:600 12px/1.15 system-ui,-apple-system,sans-serif;white-space:nowrap;cursor:pointer;position:relative;margin-bottom:8px}
+.nchip::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:#fff;border-bottom:0}
+.nchip .ci{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#1d3557;color:#fff;font-size:12px;font-weight:800}
+.nchip.b .ci{background:#E87722}
+.nchip b{display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis}.nchip small{display:block;color:#666a73;font-weight:500;font-size:11px}
+/* vista caminar */
+.wkhd{display:flex;gap:12px;align-items:flex-start;margin:4px 0 10px}.wkhd .nic{width:40px;height:40px;border-radius:12px;font-size:18px}
+.wsub{margin-top:4px;font-size:13px;color:var(--mut)}
+.wstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 12px}
+.wstats div{background:var(--soft);border-radius:14px;padding:10px;text-align:center}.wstats b{display:block;font-size:19px;letter-spacing:-.02em}.wstats small{color:var(--mut);font-size:11px}
+.wdone{background:#e6f6ec;color:#137a46;border-radius:14px;padding:14px;font-weight:700;text-align:center;margin:6px 0 12px}
+.wsteps{list-style:none;margin:0;padding:0}.wsteps li{display:flex;gap:10px;padding:9px 6px;border-top:1px solid var(--line);font-size:14px;border-radius:10px}
+.wsteps li span{width:24px;text-align:center;flex:none}.wsteps li small{display:block;color:var(--mut);font-size:12px}
+.wsteps li.on{background:var(--soft);font-weight:700}
 </style>
 </head>
 <body>
@@ -256,11 +284,11 @@ textarea.rin{min-height:110px;resize:vertical}
 
 <div id="toast"></div>
 
-<script src="config.js?v=46"></script>
-<script src="data.js?v=46"></script>
-<script src="bus.js?v=46"></script>
+<script src="config.js?v=48"></script>
+<script src="data.js?v=48"></script>
+<script src="bus.js?v=48"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=46"></script>
+<script src="app.js?v=48"></script>
 <script data-goatcounter="https://metromoro.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
