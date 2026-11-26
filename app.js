@@ -126,8 +126,11 @@ const NAVY="#1d3557";
 const mtx=m=>m<1000?Math.round(m/10)*10+" m":(m/1000).toFixed(1).replace(".",",")+" km";
 let nearMarks=[];
 function nearMk(list){nearMarks.forEach(m=>m.remove());nearMarks=[];if(!map||!list)return;
-  const lowIx=list.length>1?(list[1].ll[0]<=list[0].ll[0]?1:0):-1;
-  list.forEach((t,ix)=>{const down=ix===lowIx;
+  const me=ME?[ME.lat,ME.lon]:null;
+  // la etiqueta va del lado contrario a tu ubicación, para no taparla
+  let dirs=list.map(t=>me&&hav(me,t.ll)<0.6?me[0]>t.ll[0]:false);
+  if(list.length>1&&dirs[0]===dirs[1]&&hav(list[0].ll,list[1].ll)<0.25){const lo=list[1].ll[0]<=list[0].ll[0]?1:0;dirs=[lo===0,lo===1];}
+  list.forEach((t,ix)=>{const down=dirs[ix];
     const el=document.createElement("div");el.className="nmk"+(down?" dn":"")+(t.kind==="bus"?" b":"");
     el.innerHTML=`<button class="nchip"><span class="ci">${t.kind==="bus"?"🚌":t.kind==="metro"?"M":"📍"}</span><span><b>${esc(t.short||t.name)}</b><small>${t.min?fmt(t.min)+" · ":""}${mtx(t.m)}</small></span></button><span class="stem"></span><span class="ndot"></span>`;
     el.onclick=e=>{e.stopPropagation();openWalk(t);};
