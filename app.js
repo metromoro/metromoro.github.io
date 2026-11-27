@@ -609,7 +609,7 @@ function legendRows(){return Object.keys(LINES).map(L=>`<div class="row" data-li
 let curBus=null,busQ="";
 const busRowsHTML=q=>{const n=norm(q);return BUSES.map((b,i)=>({b,i})).filter(({b})=>!n||norm(b.ref+" "+b.name+" "+busTitle(b)+" "+busSub(b)+" "+b.stops.map(s=>s.name).join(" ")).includes(n)).map(({b,i})=>`<div class="row" data-bus="${i}"><span class="lg" style="background:${busColor(b)};color:#fff;min-width:30px;width:auto;padding:0 6px;font-size:12px">${esc(busShort(b))}</span><div class="tx"><div class="t1">${esc(busTitle(b))}</div><div class="t2">${esc(busSub(b))} · ${b.stops.length} paradas</div></div><span class="t2">›</span></div>`).join("")||`<p class="hint">No encontré rutas con «${esc(q)}».</p>`;};
 function openBuses(){VIEW="buses";$("legend").classList.remove("on");setSheet("peek");render();}
-function openBus(i){curBus=+i;VIEW="bus";$("legend").classList.remove("on");setSheet("peek");render();}
+function openBus(i){curBus=+i;VIEW="bus";$("legend").classList.remove("on");setSheet("half");render();}
 function renderBuses(){
   let h=`<div class="vtop"><button class="link" data-back="1">← Inicio</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div><h2>🚌 Rutas de bus</h2><p class="hint" style="margin-top:-4px">${BUSES.length} rutas de Caracas: Metrobús y otras. Toca una para verla en el mapa.</p>`;
   h+=`<input class="rin" id="busQ" placeholder="Busca por número, zona o parada (ej. 203, El Hatillo)" value="${esc(busQ)}">`;
@@ -619,13 +619,27 @@ function renderBuses(){
   if(mapReady){metroVis(false);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:busColor(b),t:busShort(b)}))));fitAll("ccs");}
 }
 function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuses();}
+  const stops=b.stops, shp=b.line.length>1?b.line:stops.map(s=>s.ll);
+  let dist=0;for(let k=0;k<shp.length-1;k++)dist+=hav(shp[k],shp[k+1]);
+  const approx=Math.max(1,Math.round(dist/BUS_SPEED*60*1.25));
+  // conexión con el Metro: parada con una estación a <= 300 m
+  const connByK={},connStations=new Set();
+  stops.forEach((s,k)=>{let best=null,bd=0.3;for(const n in ST){const d=hav(s.ll,ST[n]);if(d<=bd){bd=d;best=n;}}if(best){connByK[k]=best;connStations.add(best);}});
+  // parada más cercana a ti
+  const a=ME?[ME.lat,ME.lon]:(FROM?[FROM.lat,FROM.lon]:null);
+  let near=null;if(a){let bd=Infinity;stops.forEach((s,k)=>{const d=hav(a,s.ll);if(d<bd){bd=d;near={k,s,d};}});}
   let h=`<div class="vtop"><button class="link" id="bBack">← Rutas de bus</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div>`;
-  h+=`<h2><span class="lg" style="background:${busColor(b)};color:#fff;display:inline-grid;min-width:30px;height:30px;padding:0 6px;font-size:13px;vertical-align:-6px">${esc(busShort(b))}</span> ${esc(busTitle(b))}</h2><p class="hint" style="margin-top:-4px"><b>${esc(busSub(b))}</b><br>${esc(busOp(b))} · ${b.stops.length} paradas · servicio irregular</p>`;
-  h+=`<ul class="stops" style="margin-top:6px">`+b.stops.map((s,k)=>`<li data-bs="${k}" style="--lc:${busColor(b)};cursor:pointer;color:var(--ink)">${esc(s.name)}</li>`).join("")+`</ul>`;
-h+=`<p class="note">Toca una parada para ir allá.</p>`;
+  h+=`<h2><span class="lg" style="background:${busColor(b)};color:#fff;display:inline-grid;min-width:30px;height:30px;padding:0 6px;font-size:13px;vertical-align:-6px">${esc(busShort(b))}</span> ${esc(busTitle(b))}</h2>`;
+  h+=`<p class="hint" style="margin-top:-4px"><b>${esc(busSub(b))}</b><br>${esc(busOp(b))} · servicio irregular</p>`;
+  h+=`<div class="wstats"><div><b>${stops.length}</b><small>paradas</small></div><div><b>${dist.toFixed(1)}</b><small>km</small></div><div><b>~${approx}</b><small>min</small></div></div>`;
+  if(near)h+=`<button class="from" id="busNear" style="cursor:pointer"><span class="d"></span><div class="tx" style="flex:1;min-width:0"><div class="t1">Tu parada más cercana: ${esc(near.s.name)}</div><div class="t2">a ${fmt(walkMin(a,near.s.ll))} caminando · ${mtx(near.d*1300)}</div></div><span class="t2">🚶 Ir ›</span></button>`;
+  if(connStations.size)h+=`<div class="sec">🚇 Conecta con el Metro</div><p class="hint" style="margin:-2px 0 6px">${[...connStations].map(n=>`${esc(n)} ${chips(n)}`).join(" &nbsp;·&nbsp; ")}</p>`;
+  h+=`<div class="sec">Paradas</div><ul class="stops" style="margin-top:4px">`+stops.map((s,k)=>`<li data-bs="${k}" style="--lc:${busColor(b)};cursor:pointer;color:var(--ink)${near&&k===near.k?";font-weight:800":""}">${esc(s.name)}${connByK[k]?" "+chips(connByK[k]):""}${near&&k===near.k?' <span class="t2" style="font-weight:600">· tú</span>':""}</li>`).join("")+`</ul>`;
+  h+=`<p class="note">Toca una parada para ponerla como destino.</p>`;
   $("sc").innerHTML=h;$("bBack").onclick=()=>{VIEW="buses";setSheet("peek");render();};
   $("sc").querySelectorAll("[data-bs]").forEach(li=>li.onclick=()=>{const s=b.stops[+li.dataset.bs];setPoint("to",{lat:s.ll[0],lon:s.ll[1],name:"Parada "+s.name});});
-  if(mapReady){metroVis(false);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:busColor(b),t:busShort(b)})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
+  const bn=$("busNear");if(bn&&near)bn.onclick=()=>openWalk({kind:"bus",name:near.s.name,ll:near.s.ll,m:near.d*1300,min:walkMin(a,near.s.ll),routes:[b]});
+  if(mapReady){metroVis(false);setData("route",fc([lineF(shp,{c:busColor(b),t:busShort(b)})]));setData("bst",fc(stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
 }
 function openLine(L){curLine=L;VIEW="line";$("legend").classList.remove("on");render();setSheet("half");}
 function renderLine(){
