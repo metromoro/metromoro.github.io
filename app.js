@@ -124,7 +124,10 @@ const busOp=b=>b.op||"Metrobús · Metro de Caracas";
 const busSub=b=>{let t=(b.name||"").includes(":")?b.name.split(":").slice(1).join(":").trim():(b.name||"");t=t.replace(/\bCd\.\s*/g,"Ciudad ").replace(/\s*\/\s*/g," / ");
   if(/=>|->/.test(t))return t.split(/\s*(?:=>|->)\s*/).join(" → ");if(/\s[-–]\s/.test(t))return t.split(/\s+[-–]\s+/).join(" ↔ ");
   const a=b.stops&&b.stops[0]&&b.stops[0].name;return a&&a!=="parada"&&!norm(t).includes(norm(a))&&!norm(a).includes(norm(t))?`${a} → ${t}`:`Hacia ${t}`;};
-const busChip=b=>`<span class="chip" style="background:${BUS_COLOR}">🚌 ${esc(busShort(b))}</span>`;
+// cada ruta con su propio color (sin rojo), igual en ambos sentidos
+const BUSPAL=["#E87722","#1E88E5","#2E9D4F","#8E24AA","#00897B","#3949AB","#A1887F","#D81B60","#0097A7","#F9A825","#5E35B1","#7CB342","#6D4C41","#EC407A","#26A69A","#455A64"];
+const busColor=b=>{const k=String(b.ref||b.name);let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))>>>0;return BUSPAL[h%BUSPAL.length];};
+const busChip=b=>`<span class="chip" style="background:${busColor(b)}">🚌 ${esc(busShort(b))}</span>`;
 const mts=km=>{const m=km*1000*1.3;return m<1000?Math.round(m/10)*10+" m":(m/1000).toFixed(1).replace(".",",")+" km";};
 function nearBus(p){let b=null,bd=Infinity;for(const bu of BUSES)for(const s of bu.stops){const d=hav(p,s.ll);if(d<bd){bd=d;b=s;}}if(!b)return null;
   const rs=[];for(const bu of BUSES)if(bu.stops.some(s=>hav(s.ll,b.ll)<0.08)&&!rs.includes(bu))rs.push(bu);return{name:b.name,ll:b.ll,km:bd,routes:rs};}
@@ -314,17 +317,20 @@ function overlay(){
     map.addLayer({id:"net-case",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":LBLDARK()?"#17181c":"#fff","line-width":W(4,12)}});
     map.addLayer({id:"net",type:"line",source:"net",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(2.5,8)}});
     map.addSource("acc",{type:"geojson",data:fc([])});map.addSource("bnear",{type:"geojson",data:fc([])});
-    map.addLayer({id:"bnear",type:"line",source:"bnear",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":BUS_COLOR,"line-width":W(2,5),"line-opacity":.55}});
+    map.addLayer({id:"bnear",type:"line",source:"bnear",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["coalesce",["get","c"],BUS_COLOR],"line-width":W(2,5),"line-opacity":.75}});
+    map.addLayer({id:"bnear-lbl",type:"symbol",source:"bnear",filter:["has","t"],layout:{"symbol-placement":"line","symbol-spacing":220,"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12},paint:{"text-color":["get","c"],"text-halo-color":"#fff","text-halo-width":2.5}});
     map.addLayer({id:"acc-fill",type:"fill",source:"acc",paint:{"fill-color":"#1a73e8","fill-opacity":.13}});
     map.addLayer({id:"acc-line",type:"line",source:"acc",paint:{"line-color":"#1a73e8","line-opacity":.35,"line-width":1}});
     map.addLayer({id:"walk",type:"line",source:"walk",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#1a73e8","line-width":W(3,6),"line-dasharray":[0.2,1.8]}});
     map.addLayer({id:"route-case",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#fff","line-width":W(7,16)}});
     map.addLayer({id:"route",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","c"],"line-width":W(5,12)}});
+    map.addLayer({id:"route-lbl",type:"symbol",source:"route",filter:["has","t"],layout:{"symbol-placement":"line","symbol-spacing":240,"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":13},paint:{"text-color":"#fff","text-halo-color":["get","c"],"text-halo-width":3}});
     map.addLayer({id:"ex",type:"symbol",source:"ex",minzoom:14.6,layout:{"icon-image":"mexit","icon-size":["interpolate",["linear"],["zoom"],14.6,0.7,17,1.05],"icon-allow-overlap":true,"icon-ignore-placement":true}});
     map.addLayer({id:"ex-lbl",type:"symbol",source:"ex",minzoom:16.3,layout:{"text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":11,"text-offset":[0,1.5],"text-anchor":"top","text-optional":true},paint:{"text-color":LBLDARK()?"#eee":"#222","text-halo-color":LBLDARK()?"#000":"#fff","text-halo-width":1.5}});
     map.addSource("busnet",{type:"geojson",data:fc([])});
     map.addLayer({id:"busnet-case",type:"line",source:"busnet",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#fff","line-width":W(3,8),"line-opacity":.8}});
-    map.addLayer({id:"busnet",type:"line",source:"busnet",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":BUS_COLOR,"line-width":W(1.6,5),"line-opacity":.85}});
+    map.addLayer({id:"busnet",type:"line",source:"busnet",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["coalesce",["get","c"],BUS_COLOR],"line-width":W(1.6,5),"line-opacity":.85}});
+    map.addLayer({id:"busnet-lbl",type:"symbol",source:"busnet",minzoom:12.5,filter:["has","t"],layout:{"symbol-placement":"line","symbol-spacing":260,"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12},paint:{"text-color":["get","c"],"text-halo-color":"#fff","text-halo-width":2.5}});
     map.on("click","busnet",e=>{const f=e.features[0];if(f&&VIEW==="idle"){e.preventDefault();openBus(f.properties.i);}});
     map.on("mouseenter","busnet",()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave","busnet",()=>map.getCanvas().style.cursor="");
     map.addSource("bst",{type:"geojson",data:fc([])});
@@ -403,7 +409,7 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));if(VIEW!=="idle"||TO){nearMk(null);setData("bnear",fc([]));}setData("busnet",fc(VIEW==="idle"&&!TO&&MODE==="bus"?BUSES.map((b,i)=>lineF(b.line.length>1?b.line:b.stops.map(x=>x.ll),{i})):[]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));if(VIEW!=="idle"||TO){nearMk(null);setData("bnear",fc([]));}setData("busnet",fc(VIEW==="idle"&&!TO&&MODE==="bus"?BUSES.map((b,i)=>lineF(b.line.length>1?b.line:b.stops.map(x=>x.ll),{i,c:busColor(b),t:busShort(b)})):[]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
   if(VIEW!=="place")marker("place",null);
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="tripend")return renderTripEnd();
@@ -429,8 +435,8 @@ function renderIdle(tok){
       :`<button class="ncard" data-walk="b"><span class="nk"><span class="nic" style="background:${BUS_COLOR}">🚌</span>Parada</span><span class="nn">${esc(t.name)}</span><span class="nl">${`<span class="pills">${t.routes.slice(0,4).map(b=>`<span class="pill">${esc(busShort(b))}</span>`).join("")}</span>`}${t.routes.length>4?`<small class="more">+${t.routes.length-4}</small>`:""}</span><span class="nt">${fmt(t.min)} <small>· ${mtx(t.m)}</small></span><span class="nd">${t.routes.length} ${t.routes.length===1?"ruta pasa":"rutas pasan"} aquí</span><span class="ngo">🚶 Cómo llegar</span></button>`;
     let MT=mT(nb);
     const nrt=MODE==="metro"?[]:BUSES.map(b=>{let d=Infinity,st=null;for(const x of b.stops){const k=hav(a,x.ll);if(k<d){d=k;st=x;}}return{b,d,st};}).filter(o=>o.d<0.7).sort((x,y)=>x.d-y.d).slice(0,6);
-    const nbH=!nrt.length?"":(`<div class="sec">🚌 Buses cerca de ti</div>`+nrt.map(o=>`<div class="row" data-nbus="${BUSES.indexOf(o.b)}" style="cursor:pointer"><span class="lg" style="background:${BUS_COLOR};color:#fff;font-size:11px">${esc(busShort(o.b).slice(0,6))}</span><div class="tx"><div class="t1">${esc(busTitle(o.b))}</div><div class="t2">${esc(busSub(o.b))}</div><div class="t2">Parada ${esc(o.st.name)} · ${mtx(o.d*1300)}</div></div><span class="t2">›</span></div>`).join(""));
-    const paint=()=>{if(mapReady&&tok===renderTok&&VIEW==="idle")setData("bnear",fc(nrt.map(o=>lineF(o.b.line.length>1?o.b.line:o.b.stops.map(x=>x.ll)))));const g=$("nearGrid");if(g)g.innerHTML=card(MT)+(bT?card(bT):"");if(g)g.querySelectorAll("[data-walk]").forEach(c=>c.onclick=()=>openWalk(c.dataset.walk==="m"?MT:bT));if(mapReady&&tok===renderTok&&VIEW==="idle"){nearMk([MT,bT].filter(Boolean));if(!nearFitted&&ME&&!TO){nearFitted=true;const pts=[a,MT.ll].concat(bT?[bT.ll]:[]);setTimeout(()=>{const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));const pd=padding();map.fitBounds(b,{padding:{top:pd.top+60,bottom:pd.bottom+60,left:pd.left+70,right:pd.right+70},maxZoom:16,duration:600});},400);}}};
+    const nbH=!nrt.length?"":(`<div class="sec">🚌 Buses cerca de ti</div>`+nrt.map(o=>`<div class="row" data-nbus="${BUSES.indexOf(o.b)}" style="cursor:pointer"><span class="lg" style="background:${busColor(o.b)};color:#fff;font-size:11px">${esc(busShort(o.b).slice(0,6))}</span><div class="tx"><div class="t1">${esc(busTitle(o.b))}</div><div class="t2">${esc(busSub(o.b))}</div><div class="t2">Parada ${esc(o.st.name)} · ${mtx(o.d*1300)}</div></div><span class="t2">›</span></div>`).join(""));
+    const paint=()=>{if(mapReady&&tok===renderTok&&VIEW==="idle")setData("bnear",fc(nrt.map(o=>lineF(o.b.line.length>1?o.b.line:o.b.stops.map(x=>x.ll),{c:busColor(o.b),t:busShort(o.b)}))));const g=$("nearGrid");if(g)g.innerHTML=card(MT)+(bT?card(bT):"");if(g)g.querySelectorAll("[data-walk]").forEach(c=>c.onclick=()=>openWalk(c.dataset.walk==="m"?MT:bT));if(mapReady&&tok===renderTok&&VIEW==="idle"){nearMk([MT,bT].filter(Boolean));if(!nearFitted&&ME&&!TO){nearFitted=true;const pts=[a,MT.ll].concat(bT?[bT.ll]:[]);setTimeout(()=>{const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));const pd=padding();map.fitBounds(b,{padding:{top:pd.top+60,bottom:pd.bottom+60,left:pd.left+70,right:pd.right+70},maxZoom:16,duration:600});},400);}}};
     h+=`<div class="sec">Cerca de ti</div><div class="near2" id="nearGrid"></div>`;
     setTimeout(paint,0);
     walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};
@@ -600,7 +606,7 @@ let curLine=null;
 const lineStations=L=>{const out=[];for(const p of LINES[L].paths)for(const s of p.s)if(!out.includes(s))out.push(s);return out;};
 function legendRows(){return Object.keys(LINES).map(L=>`<div class="row" data-line="${L}"><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"}">${LINES[L].short==="LT"?"LT":LINES[L].short}</span><div class="tx"><div class="t1">${LINES[L].name}</div><div class="t2">${ENDS[L]} · ${lineStations(L).length} estaciones</div></div><span class="t2">›</span></div>`).join("");}
 let curBus=null,busQ="";
-const busRowsHTML=q=>{const n=norm(q);return BUSES.map((b,i)=>({b,i})).filter(({b})=>!n||norm(b.ref+" "+b.name+" "+busTitle(b)+" "+busSub(b)+" "+b.stops.map(s=>s.name).join(" ")).includes(n)).map(({b,i})=>`<div class="row" data-bus="${i}"><span class="lg" style="background:${BUS_COLOR};color:#fff;min-width:30px;width:auto;padding:0 6px;font-size:12px">${esc(busShort(b))}</span><div class="tx"><div class="t1">${esc(busTitle(b))}</div><div class="t2">${esc(busSub(b))} · ${b.stops.length} paradas</div></div><span class="t2">›</span></div>`).join("")||`<p class="hint">No encontré rutas con «${esc(q)}».</p>`;};
+const busRowsHTML=q=>{const n=norm(q);return BUSES.map((b,i)=>({b,i})).filter(({b})=>!n||norm(b.ref+" "+b.name+" "+busTitle(b)+" "+busSub(b)+" "+b.stops.map(s=>s.name).join(" ")).includes(n)).map(({b,i})=>`<div class="row" data-bus="${i}"><span class="lg" style="background:${busColor(b)};color:#fff;min-width:30px;width:auto;padding:0 6px;font-size:12px">${esc(busShort(b))}</span><div class="tx"><div class="t1">${esc(busTitle(b))}</div><div class="t2">${esc(busSub(b))} · ${b.stops.length} paradas</div></div><span class="t2">›</span></div>`).join("")||`<p class="hint">No encontré rutas con «${esc(q)}».</p>`;};
 function openBuses(){VIEW="buses";$("legend").classList.remove("on");setSheet("peek");render();}
 function openBus(i){curBus=+i;VIEW="bus";$("legend").classList.remove("on");setSheet("peek");render();}
 function renderBuses(){
@@ -609,16 +615,16 @@ function renderBuses(){
   h+=`<div id="busList">${busRowsHTML(busQ)}</div><p class="note">Rutas de OpenStreetMap. El Metrobús suele tener pocas unidades y horarios irregulares.</p>`;
   $("sc").innerHTML=h;const q=$("busQ");q.oninput=()=>{busQ=q.value;$("busList").innerHTML=busRowsHTML(busQ);};
   $("busList").onclick=e=>{const r=e.target.closest("[data-bus]");if(r)openBus(r.dataset.bus);};
-  if(mapReady){metroVis(false);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:BUS_COLOR}))));fitAll("ccs");}
+  if(mapReady){metroVis(false);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:busColor(b),t:busShort(b)}))));fitAll("ccs");}
 }
 function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuses();}
   let h=`<div class="vtop"><button class="link" id="bBack">← Rutas de bus</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div>`;
-  h+=`<h2><span class="lg" style="background:${BUS_COLOR};color:#fff;display:inline-grid;min-width:30px;height:30px;padding:0 6px;font-size:13px;vertical-align:-6px">${esc(busShort(b))}</span> ${esc(busTitle(b))}</h2><p class="hint" style="margin-top:-4px"><b>${esc(busSub(b))}</b><br>${esc(busOp(b))} · ${b.stops.length} paradas · servicio irregular</p>`;
-  h+=`<ul class="stops" style="margin-top:6px">`+b.stops.map((s,k)=>`<li data-bs="${k}" style="--lc:${BUS_COLOR};cursor:pointer;color:var(--ink)">${esc(s.name)}</li>`).join("")+`</ul>`;
+  h+=`<h2><span class="lg" style="background:${busColor(b)};color:#fff;display:inline-grid;min-width:30px;height:30px;padding:0 6px;font-size:13px;vertical-align:-6px">${esc(busShort(b))}</span> ${esc(busTitle(b))}</h2><p class="hint" style="margin-top:-4px"><b>${esc(busSub(b))}</b><br>${esc(busOp(b))} · ${b.stops.length} paradas · servicio irregular</p>`;
+  h+=`<ul class="stops" style="margin-top:6px">`+b.stops.map((s,k)=>`<li data-bs="${k}" style="--lc:${busColor(b)};cursor:pointer;color:var(--ink)">${esc(s.name)}</li>`).join("")+`</ul>`;
   h+=`<a class="btn" style="display:flex;justify-content:center;margin:10px 0" target="_blank" rel="noopener" href="https://yapasoelbus.app/">📡 ¿Dónde viene el Metrobús? Ver en vivo en YaPasóElBus ↗</a>`;h+=`<p class="note">Toca una parada para ir allá.</p>`;
   $("sc").innerHTML=h;$("bBack").onclick=()=>{VIEW="buses";setSheet("peek");render();};
   $("sc").querySelectorAll("[data-bs]").forEach(li=>li.onclick=()=>{const s=b.stops[+li.dataset.bs];setPoint("to",{lat:s.ll[0],lon:s.ll[1],name:"Parada "+s.name});});
-  if(mapReady){metroVis(false);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:BUS_COLOR})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
+  if(mapReady){metroVis(false);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:busColor(b),t:busShort(b)})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
 }
 function openLine(L){curLine=L;VIEW="line";$("legend").classList.remove("on");render();setSheet("half");}
 function renderLine(){
