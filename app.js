@@ -1044,7 +1044,7 @@ async function downloadMap(){
 }
 if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 
-window.MM={route,busOptions,BUSES,walkTable,walkRoute,ST,EXITS,LINES,nearest,bestExit};
+window.MM={route,busOptions,BUSES,walkTable,walkRoute,ST,EXITS,LINES,nearest,bestExit,trip:()=>TRIP,tick:()=>tripTick(),gpsOff:()=>{lastFix=0;},view:()=>VIEW};
 // ================= ARRANQUE =================
 (function start(){
   const sp=new URLSearchParams(location.search);
