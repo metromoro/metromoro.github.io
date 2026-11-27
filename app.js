@@ -621,7 +621,7 @@ function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuse
   let h=`<div class="vtop"><button class="link" id="bBack">← Rutas de bus</button><button class="vx" data-back="1" aria-label="Cerrar">✕</button></div>`;
   h+=`<h2><span class="lg" style="background:${busColor(b)};color:#fff;display:inline-grid;min-width:30px;height:30px;padding:0 6px;font-size:13px;vertical-align:-6px">${esc(busShort(b))}</span> ${esc(busTitle(b))}</h2><p class="hint" style="margin-top:-4px"><b>${esc(busSub(b))}</b><br>${esc(busOp(b))} · ${b.stops.length} paradas · servicio irregular</p>`;
   h+=`<ul class="stops" style="margin-top:6px">`+b.stops.map((s,k)=>`<li data-bs="${k}" style="--lc:${busColor(b)};cursor:pointer;color:var(--ink)">${esc(s.name)}</li>`).join("")+`</ul>`;
-  h+=`<a class="btn" style="display:flex;justify-content:center;margin:10px 0" target="_blank" rel="noopener" href="https://yapasoelbus.app/">📡 ¿Dónde viene el Metrobús? Ver en vivo en YaPasóElBus ↗</a>`;h+=`<p class="note">Toca una parada para ir allá.</p>`;
+h+=`<p class="note">Toca una parada para ir allá.</p>`;
   $("sc").innerHTML=h;$("bBack").onclick=()=>{VIEW="buses";setSheet("peek");render();};
   $("sc").querySelectorAll("[data-bs]").forEach(li=>li.onclick=()=>{const s=b.stops[+li.dataset.bs];setPoint("to",{lat:s.ll[0],lon:s.ll[1],name:"Parada "+s.name});});
   if(mapReady){metroVis(false);const shp=b.line.length>1?b.line:b.stops.map(s=>s.ll);setData("route",fc([lineF(shp,{c:busColor(b),t:busShort(b)})]));setData("bst",fc(b.stops.map(s=>ptF(s.ll,{n:s.name}))));fit(shp);}
@@ -652,7 +652,6 @@ function renderWalk(){const t=WALKTO,a=walkFrom();if(!t||!a){VIEW="idle";return 
   if(t.done)h+=`<div class="wdone">🎉 ¡Llegaste${t.kind==="metro"?" a la entrada":t.kind==="bus"?" a la parada":""}!</div>`;
   else h+=`<div class="wstats"><div><b id="wMin">${fmt(t.go&&tot?min*rem/tot:min)}</b><small>a pie</small></div><div><b id="wM">${mtx(rem)}</b><small>${t.go?"faltan":"distancia"}</small></div><div><b id="wEta">${new Date(Date.now()+(t.go&&tot?min*rem/tot:min)*60000).toLocaleTimeString("es-VE",{hour:"numeric",minute:"2-digit"})}</b><small>llegas</small></div></div>`;
   h+=`<div class="btns">`+(t.done?"":`<button class="btn pri" id="wGo">${t.go?"⏸ Pausar":"▶ Empezar a caminar"}</button>`)+(t.kind==="metro"?`<button class="btn" id="wSt">Ver estación</button>`:t.kind==="bus"?`<button class="btn" id="wBus">Ver rutas</button>`:"")+`</div>`;
-  if(t.kind==="bus")h+=`<a class="btn" style="display:flex;justify-content:center;margin:0 0 10px" target="_blank" rel="noopener" href="https://yapasoelbus.app/">📡 ¿Ya viene el bus? Míralo en vivo en YaPasóElBus ↗</a>`;
   if(!w)h+=`<p class="hint">Calculando el camino por las calles…</p>`;
   else if(w.steps&&w.steps.length&&!t.done)h+=`<div class="sec">Indicaciones</div><ol class="wsteps">`+w.steps.map((x,i)=>`<li${i===t.si?" class=\"on\"":""}><span>${STEP_IC[x.ty]||"🚶"}</span><div>${esc(x.t)}${x.m>=5?`<small>${mtx(x.m)}</small>`:""}</div></li>`).join("")+`</ol>`;
   h+=`<p class="note">Camino a pie calculado con OpenStreetMap. Fíjate en el tráfico al cruzar.</p>`;
