@@ -15,10 +15,11 @@ window.APP_CONFIG = {
   // Muestra la posición GPS de los buses en el mapa (módulo vivo.js).
   // Deja "token" vacío para desactivar la función.
   busVivo: {
-    base: "https://monitoreo-transporte-urbano-service-dot-colombia-gcp.ue.r.appspot.com/api/calcularTiempoDeTrafico/",
-    token: "",              // pega aquí tu TokenIDMTU
+    // Apunta al proxy (Cloudflare Worker) que guarda el token y resuelve el CORS
+    base: "https://metromoro-buses.ingenieroantoniosira.workers.dev/",
+    token: "proxy",         // placeholder: el token real vive en el Worker, no aquí
     refreshSec: 12,         // cada cuántos segundos refrescar
-    stations: [],           // ids de estación a consultar, ej: [113, 114]
+    stations: [113],        // ids de estación con buses GPS (agrega más cuando funcione)
     lineas: []              // o por línea, ej: [{ linea_id: 2, estacion_id: 113 }]
   },
 
