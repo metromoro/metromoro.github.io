@@ -332,7 +332,7 @@ function overlay(){
     map.addLayer({id:"busnet-case",type:"line",source:"busnet",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#fff","line-width":W(3,8),"line-opacity":.8}});
     map.addLayer({id:"busnet",type:"line",source:"busnet",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["coalesce",["get","c"],BUS_COLOR],"line-width":W(1.6,5),"line-opacity":.85}});
     map.addLayer({id:"busnet-lbl",type:"symbol",source:"busnet",minzoom:12.5,filter:["has","t"],layout:{"symbol-placement":"line","symbol-spacing":260,"text-field":["get","t"],"text-font":["Noto Sans Bold"],"text-size":12},paint:{"text-color":["get","c"],"text-halo-color":"#fff","text-halo-width":2.5}});
-    map.on("click","busnet",e=>{const f=e.features[0];if(f&&VIEW==="idle"){e.preventDefault();openBus(f.properties.i);}});
+    map.on("click","busnet",e=>{const f=e.features[0];if(f&&VIEW==="buses"){e.preventDefault();openBus(f.properties.i);}});
     map.on("mouseenter","busnet",()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave","busnet",()=>map.getCanvas().style.cursor="");
     map.addSource("bst",{type:"geojson",data:fc([])});
     map.addLayer({id:"bst",type:"circle",source:"bst",paint:{"circle-radius":["interpolate",["linear"],["zoom"],11,3,16,6],"circle-color":"#fff","circle-stroke-color":"#E87722","circle-stroke-width":2.5}});
@@ -410,7 +410,7 @@ function render(keepView){
   drawQuick();
   marker("from",FROM&&!FROM.live?[FROM.lat,FROM.lon]:null,"fromdot");
   marker("to",TO?[TO.lat,TO.lon]:null,"pin");
-  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));if(VIEW!=="idle"||TO){nearMk(null);setData("bnear",fc([]));}setData("busnet",fc(VIEW==="idle"&&!TO&&MODE==="bus"?BUSES.map((b,i)=>lineF(b.line.length>1?b.line:b.stops.map(x=>x.ll),{i,c:busColor(b),t:busShort(b)})):[]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
+  if(mapReady){setData("route",fc([]));setData("walk",fc([]));setData("rex",fc([]));setData("bst",fc([]));if(VIEW!=="idle"||TO){nearMk(null);setData("bnear",fc([]));}setData("busnet",fc([]));netOp(1);metroVis(SHOWNET||MODE==="metro"||VIEW==="station"||VIEW==="line");}
   if(VIEW!=="place")marker("place",null);
   if(VIEW==="trip")return renderTrip();
   if(VIEW==="tripend")return renderTripEnd();
@@ -437,7 +437,7 @@ function renderIdle(tok){
     let MT=mT(nb);
     const nrt=MODE==="metro"?[]:BUSES.map(b=>{let d=Infinity,st=null;for(const x of b.stops){const k=hav(a,x.ll);if(k<d){d=k;st=x;}}return{b,d,st};}).filter(o=>o.d<0.7).sort((x,y)=>x.d-y.d).slice(0,6);
     const nbH=!nrt.length?"":(`<div class="sec">🚌 Buses cerca de ti</div>`+nrt.map(o=>`<div class="row" data-nbus="${BUSES.indexOf(o.b)}" style="cursor:pointer"><span class="lg" style="background:${busColor(o.b)};color:#fff;font-size:11px">${esc(busShort(o.b).slice(0,6))}</span><div class="tx"><div class="t1">${esc(busTitle(o.b))}</div><div class="t2">${esc(busSub(o.b))}</div><div class="t2">Parada ${esc(o.st.name)} · ${mtx(o.d*1300)}</div></div><span class="t2">›</span></div>`).join(""));
-    const paint=()=>{if(mapReady&&tok===renderTok&&VIEW==="idle")setData("bnear",fc(MODE==="bus"?nrt.map(o=>lineF(o.b.line.length>1?o.b.line:o.b.stops.map(x=>x.ll),{c:busColor(o.b),t:busShort(o.b)})):[]));const g=$("nearGrid");if(g)g.innerHTML=card(MT)+(bT?card(bT):"");if(g)g.querySelectorAll("[data-walk]").forEach(c=>c.onclick=()=>openWalk(c.dataset.walk==="m"?MT:bT));if(mapReady&&tok===renderTok&&VIEW==="idle"){nearMk([MT,bT].filter(Boolean));if(!nearFitted&&ME&&!TO){nearFitted=true;const pts=[a,MT.ll].concat(bT?[bT.ll]:[]);setTimeout(()=>{const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));const pd=padding();map.fitBounds(b,{padding:{top:pd.top+60,bottom:pd.bottom+60,left:pd.left+70,right:pd.right+70},maxZoom:16,duration:600});},400);}}};
+    const paint=()=>{if(mapReady&&tok===renderTok&&VIEW==="idle")setData("bnear",fc([]));const g=$("nearGrid");if(g)g.innerHTML=card(MT)+(bT?card(bT):"");if(g)g.querySelectorAll("[data-walk]").forEach(c=>c.onclick=()=>openWalk(c.dataset.walk==="m"?MT:bT));if(mapReady&&tok===renderTok&&VIEW==="idle"){nearMk([MT,bT].filter(Boolean));if(!nearFitted&&ME&&!TO){nearFitted=true;const pts=[a,MT.ll].concat(bT?[bT.ll]:[]);setTimeout(()=>{const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(LL(p)));const pd=padding();map.fitBounds(b,{padding:{top:pd.top+60,bottom:pd.bottom+60,left:pd.left+70,right:pd.right+70},maxZoom:16,duration:600});},400);}}};
     h+=`<div class="sec">Cerca de ti</div><div class="near2" id="nearGrid"></div>`;
     setTimeout(paint,0);
     walkTable(a,true).then(o=>{if(!o||tok!==renderTok||VIEW!=="idle")return;let best=null;for(const n in o)if(!best||o[n].w<best.w)best={n,...o[n]};
@@ -607,7 +607,8 @@ let curLine=null;
 const lineStations=L=>{const out=[];for(const p of LINES[L].paths)for(const s of p.s)if(!out.includes(s))out.push(s);return out;};
 function legendRows(){return Object.keys(LINES).map(L=>`<div class="row" data-line="${L}"><span class="lg" style="background:${LINES[L].color};color:${LINES[L].dark?"#3a2b00":"#fff"}">${LINES[L].short==="LT"?"LT":LINES[L].short}</span><div class="tx"><div class="t1">${LINES[L].name}</div><div class="t2">${ENDS[L]} · ${lineStations(L).length} estaciones</div></div><span class="t2">›</span></div>`).join("");}
 let curBus=null,busQ="";
-const busRowsHTML=q=>{const n=norm(q);return BUSES.map((b,i)=>({b,i})).filter(({b})=>!n||norm(b.ref+" "+b.name+" "+busTitle(b)+" "+busSub(b)+" "+b.stops.map(s=>s.name).join(" ")).includes(n)).map(({b,i})=>`<div class="row" data-bus="${i}"><span class="lg" style="background:${busColor(b)};color:#fff;min-width:30px;width:auto;padding:0 6px;font-size:12px">${esc(busShort(b))}</span><div class="tx"><div class="t1">${esc(busTitle(b))}</div><div class="t2">${esc(busSub(b))} · ${b.stops.length} paradas</div></div><span class="t2">›</span></div>`).join("")||`<p class="hint">No encontré rutas con «${esc(q)}».</p>`;};
+const busSortKey=b=>{const s=String(busShort(b)).trim(),m=s.match(/\d+/);return m?[0,parseInt(m[0],10),s.toLowerCase()]:[1,0,busTitle(b).toLowerCase()];};
+const busRowsHTML=q=>{const n=norm(q);return BUSES.map((b,i)=>({b,i})).sort((x,y)=>{const a=busSortKey(x.b),c=busSortKey(y.b);return a[0]-c[0]||a[1]-c[1]||(a[2]<c[2]?-1:a[2]>c[2]?1:0);}).filter(({b})=>!n||norm(b.ref+" "+b.name+" "+busTitle(b)+" "+busSub(b)+" "+b.stops.map(s=>s.name).join(" ")).includes(n)).map(({b,i})=>`<div class="row" data-bus="${i}"><span class="lg" style="background:${busColor(b)};color:#fff;min-width:30px;width:auto;padding:0 6px;font-size:12px">${esc(busShort(b))}</span><div class="tx"><div class="t1">${esc(busTitle(b))}</div><div class="t2">${esc(busSub(b))} · ${b.stops.length} paradas</div></div><span class="t2">›</span></div>`).join("")||`<p class="hint">No encontré rutas con «${esc(q)}».</p>`;};
 function openBuses(){VIEW="buses";$("legend").classList.remove("on");setSheet("peek");render();}
 function openBus(i){curBus=+i;VIEW="bus";$("legend").classList.remove("on");setSheet("half");render();}
 function renderBuses(){
@@ -616,7 +617,7 @@ function renderBuses(){
   h+=`<div id="busList">${busRowsHTML(busQ)}</div><p class="note">Rutas de OpenStreetMap. El Metrobús suele tener pocas unidades y horarios irregulares.</p>`;
   $("sc").innerHTML=h;const q=$("busQ");q.oninput=()=>{busQ=q.value;$("busList").innerHTML=busRowsHTML(busQ);};
   $("busList").onclick=e=>{const r=e.target.closest("[data-bus]");if(r)openBus(r.dataset.bus);};
-  if(mapReady){metroVis(false);setData("route",fc(BUSES.map(b=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{c:busColor(b),t:busShort(b)}))));fitAll("ccs");}
+  if(mapReady){metroVis(false);setData("busnet",fc(BUSES.map((b,i)=>lineF(b.line.length>1?b.line:b.stops.map(s=>s.ll),{i,c:busColor(b),t:busShort(b)}))));fitAll("ccs");}
 }
 function renderBus(){const b=BUSES[curBus];if(!b){VIEW="buses";return renderBuses();}
   const stops=b.stops, shp=b.line.length>1?b.line:stops.map(s=>s.ll);
