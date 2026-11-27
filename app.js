@@ -270,6 +270,7 @@ function setData(id,data){const s=map&&map.getSource(id);if(s)s.setData(data);}
 function initMap(){
   if(!window.maplibregl){$("sc").innerHTML=`<p class="hint">No se pudo cargar el mapa. Revisa tu conexión y vuelve a abrir la app.</p>`;return;}
   map=new maplibregl.Map({container:"map",style:styleURL(mapStyle),center:[-66.89,10.49],zoom:11.6,maxZoom:19,dragRotate:true,pitchWithRotate:false,touchPitch:false,attributionControl:{compact:true}});
+  window.MM_MAP=map; // expone el mapa para módulos opcionales (vivo.js · buses en vivo)
   {let lc="";map.on("moveend",()=>{const c=curCity();if(c!==lc){lc=c;store.set("city",c);drawQuick();}});map.on("dragstart",()=>{if(TRIP&&TRIP.follow){TRIP.follow=false;const b=$("tCenter");if(b)b.style.display="";}});}
   map.on("styledata",()=>{if(!map.getSource("net")&&map.isStyleLoaded()){overlay();if(mapReady)render(true);}});
   map.on("dragstart",()=>{if(FOLLOW)setFollow(0);});
