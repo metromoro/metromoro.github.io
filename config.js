@@ -15,12 +15,13 @@ window.APP_CONFIG = {
   // Muestra la posición GPS de los buses en el mapa (módulo vivo.js).
   // Deja "token" vacío para desactivar la función.
   busVivo: {
-    // Apunta al proxy (Cloudflare Worker) que guarda el token y resuelve el CORS
-    base: "https://metromoro-buses.ingenieroantoniosira.workers.dev/",
-    token: "proxy",         // placeholder: el token real vive en el Worker, no aquí
-    refreshSec: 12,         // cada cuántos segundos refrescar
-    stations: [113],        // ids de estación con buses GPS (agrega más cuando funcione)
-    lineas: []              // o por línea, ej: [{ linea_id: 2, estacion_id: 113 }]
+    // Desactivado hasta tener una fuente de datos propia o autorizada.
+    // El botón solo aparece cuando "token" y "stations"/"lineas" están llenos.
+    base: "",
+    token: "",
+    refreshSec: 12,
+    stations: [],
+    lineas: []
   },
 
   // ====== INVÍTAME UN CAFÉ ======
