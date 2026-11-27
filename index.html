@@ -55,6 +55,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .grab{padding:10px 0 6px;touch-action:none;cursor:grab;flex:none}
 .grab i{display:block;width:42px;height:5px;border-radius:9px;background:var(--line);margin:0 auto}
 #sc{flex:1;overflow-y:auto;padding:0 16px calc(24px + var(--bot));overscroll-behavior:contain}
+/* la parte del panel que queda bajo la pantalla no debe esconder el final del contenido */
+@media(max-width:899px){#sc{padding-bottom:calc(24px + var(--bot) + max(0px, 92vh - var(--sheetH,150px)));padding-bottom:calc(24px + var(--bot) + max(0px, 92dvh - var(--sheetH,150px)))}}
 h2{font-size:20px;margin:2px 0 10px}
 .row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
 .row:first-child{border-top:0}
@@ -301,11 +303,11 @@ textarea.rin{min-height:110px;resize:vertical}
 
 <div id="toast"></div>
 
-<script src="config.js?v=54"></script>
-<script src="data.js?v=54"></script>
-<script src="bus.js?v=54"></script>
+<script src="config.js?v=55"></script>
+<script src="data.js?v=55"></script>
+<script src="bus.js?v=55"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=54"></script>
+<script src="app.js?v=55"></script>
 <script data-goatcounter="https://metromoro.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
