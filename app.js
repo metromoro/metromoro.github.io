@@ -521,7 +521,7 @@ function bindTabs(){$("sc").querySelectorAll("[data-tab]").forEach(b=>b.onclick=
   const tm=$("tmodes"),on=tm&&tm.querySelector(".on");if(on)tm.scrollLeft=on.offsetLeft-tm.offsetWidth/2+on.offsetWidth/2;}
 function routeHTML(r){
   const arr=new Date(Date.now()+r.total*60000);
-  if(r.noBus)return tabsHTML()+`<p class="hint" style="margin:10px 0">No encontré una ruta solo en bus entre estos dos puntos. Prueba con «Mejor ruta» o «Metro».</p><button class="from" id="bFrom2"><span class="d"></span><span style="flex:1"><span style="display:block;font-size:12px;color:var(--mut)">Desde</span><b>${esc(FROM.name)}</b></span><span class="link">Cambiar</span></button>`;
+  if(r.noBus)return tabsHTML()+`<p class="hint" style="margin:10px 0">No encontré una ruta solo en bus entre estos dos puntos. Prueba con «Recomendada» o «Metro».</p><button class="from" id="bFrom2"><span class="d"></span><span style="flex:1"><span style="display:block;font-size:12px;color:var(--mut)">Desde</span><b>${esc(FROM.name)}</b></span><span class="link">Cambiar</span></button>`;
   let h=tabsHTML()+`<div class="sum"><b>${fmt(r.total)}</b><span>llegas ~${clock(arr)}${r.walkOnly?" · a pie":" · a pie serían "+fmt(r.direct)}</span></div>`;
   if(!r.walkOnly)h+=`<div class="flow">${legFlow(r)}</div>`;
   if(!metroOpen()&&!r.walkOnly)h+=`<p class="hint" style="color:var(--acc);margin:6px 0 0">El Metro está cerrado ahora (abre 5:30 a. m.).</p>`;
