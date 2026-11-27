@@ -659,13 +659,14 @@ function renderWalk(){const t=WALKTO,a=walkFrom();if(!t||!a){VIEW="idle";return 
   const g=$("wGo");if(g)g.onclick=()=>{t.go=!t.go;if(t.go){useGPS(false);try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(l=>t.lock=l).catch(()=>{});}catch(e){}track("caminata iniciada");walkGPS(true);}else if(t.lock)try{t.lock.release();}catch(e){}render();};
   const sb=$("wSt");if(sb)sb.onclick=()=>openStation(t.st);
   const bb=$("wBus");if(bb)bb.onclick=()=>{if(t.routes.length===1)openBus(BUSES.indexOf(t.routes[0]));else openBuses();};
-  if(mapReady){metroVis(false);nearMk([t]);setData("walk",fc([lineF(w?w.path:[a,t.ll])]));if(!t.fitted&&!t.go){t.fitted=true;fit([a,t.ll].concat(w?w.path:[]));}}
+  if(mapReady){metroVis(false);nearMk([t]);const wp=w?w.path:[a,t.ll];setData("walk",fc([lineF((t.go&&ME&&(ME.acc||999)<160)?trimFrom(wp,[ME.lat,ME.lon]):wp)]));if(!t.fitted&&!t.go){t.fitted=true;fit([a,t.ll].concat(w?w.path:[]));}}
   if(!w)walkRoute(a,t.ll).then(r=>{if(WALKTO!==t)return;t.w=r||{path:[a,t.ll],min:walkMin(a,t.ll),m:hav(a,t.ll)*1300,steps:[]};t.fitted=false;if(VIEW==="walk")render();});
 }
 function walkGPS(force){const t=WALKTO;if(!t||VIEW!=="walk"||!ME||!t.w)return;const me=[ME.lat,ME.lon];
   if(hav(me,t.ll)<0.035){if(!t.done){t.done=true;t.go=false;if(t.lock)try{t.lock.release();}catch(e){}if(navigator.vibrate)navigator.vibrate([80,60,80]);toast(t.kind==="metro"?"¡Llegaste! Entra por aquí 🚇":t.kind==="bus"?"¡Llegaste a la parada! 🚌":"¡Llegaste!",4000);track("caminata terminada");render();}return;}
   const pr=projFrac(t.w.path,me);t.rem=Math.max(0,t.w.m*(1-pr.f));
   if(t.w.steps&&t.w.steps.length){let acc=0,done=t.w.m-t.rem;t.si=0;for(let i=0;i<t.w.steps.length;i++){if(acc>done+5){break;}t.si=i;acc+=t.w.steps[i].m;}}
+  if(mapReady&&t.w&&t.w.path)setData("walk",fc([lineF(trimFrom(t.w.path,me))]));
   if(!t.go&&!force)return;
   const r=t.rem/t.w.m,mm=t.w.min*r;const a=$("wM"),b=$("wMin"),c=$("wEta");if(a)a.textContent=mtx(t.rem);if(b)b.textContent=fmt(mm);if(c)c.textContent=new Date(Date.now()+mm*60000).toLocaleTimeString("es-VE",{hour:"numeric",minute:"2-digit"});
   $("sc").querySelectorAll(".wsteps li").forEach((li,i)=>li.classList.toggle("on",i===t.si));
@@ -739,6 +740,12 @@ function projFrac(s,p){if(s.length<2)return{d:s.length?hav(s[0],p):Infinity,f:0}
   for(let i=1;i<s.length;i++){const A=s[i-1],B=s[i],seg=hav(A,B),k=Math.cos(A[0]*Math.PI/180);const ax=A[1]*k,ay=A[0],dx=B[1]*k-ax,dy=B[0]-ay,L2=dx*dx+dy*dy;
     let t=L2?((p[1]*k-ax)*dx+(p[0]-ay)*dy)/L2:0;t=Math.max(0,Math.min(1,t));const q=[ay+t*dy,(ax+t*dx)/k],d=hav(q,p);if(d<best.d)best={d,f:(acc+seg*t)/tot};acc+=seg;}
   return best;}
+// recorta la parte ya caminada: devuelve la línea desde donde estás hasta el final
+function trimFrom(shape,me){if(!shape||shape.length<2)return shape||[];const tot=plen(shape)||1e-9;const pr=projFrac(shape,me);let acc=0,out=[];
+  for(let i=1;i<shape.length;i++){const seg=hav(shape[i-1],shape[i]),f0=acc/tot,f1=(acc+seg)/tot;
+    if(f1>=pr.f){const t=(f1>f0)?(pr.f-f0)/(f1-f0):0,A=shape[i-1],B=shape[i];out.push([A[0]+(B[0]-A[0])*t,A[1]+(B[1]-A[1])*t]);for(let j=i;j<shape.length;j++)out.push(shape[j]);break;}
+    acc+=seg;}
+  if(!out.length)out=[shape[shape.length-1]];out.unshift(me);return out;}
 let tripTimer=null;
 function startTrip(r){
   const seq=[];r.legs.forEach((g,li)=>{if(g.type==="ride")g.path.forEach((s,i)=>{if(i===0&&seq.length&&seq[seq.length-1].st===s){seq[seq.length-1].xfer=true;return;}seq.push({st:s,leg:li,line:g.line});});});
@@ -819,7 +826,7 @@ function renderTrip(){
   $("tCenter").onclick=()=>{TRIP.follow=true;render();};$("tEnd").onclick=endTrip;
   if(mapReady){netOp(.28);metroVis(T.legs.some(l=>l.g.type==="ride"));
     setData("route",fc(T.legs.filter(l=>l.g.type==="ride"||l.g.type==="bus").map(l=>lineF(l.shape,{c:l.g.type==="bus"?BUS_COLOR:LINES[l.g.line].color}))));
-    setData("walk",fc(T.legs.filter(l=>l.g.type==="walk"&&l.shape.length>1).map(l=>lineF(l.shape))));
+    setData("walk",fc(T.legs.filter(l=>l.g.type==="walk"&&l.shape.length>1).map(l=>(l===L&&g.type==="walk"&&ME&&(ME.acc||999)<160)?lineF(trimFrom(l.shape,[ME.lat,ME.lon])):lineF(l.shape))));
     const near=ME&&L.shape.length&&projFrac(L.shape,[ME.lat,ME.lon]).d<1;
     if(T.follow&&near&&g.type!=="ride")map.easeTo({center:LL([ME.lat,ME.lon]),zoom:16.5,padding:padding(),duration:600});
     else if(T.follow){const pts=g.type==="ride"?[ST[T.seq[T.i].st]].concat(T.seq[T.i+1]?[ST[T.seq[T.i+1].st]]:[]):L.shape;if(pts.length>1)fit(pts);else if(pts.length)map.easeTo({center:LL(pts[0]),zoom:15.5,padding:padding(),duration:500});}}
@@ -853,7 +860,7 @@ function tripGPS(acc){const T=TRIP;if(!T||!ME||acc>150)return;const me=[ME.lat,M
   else if(L.shape.length>1){const pr=projFrac(L.shape,me);if(pr.d<0.25&&pr.f>T.frac){T.frac=pr.f;changed=true;}
     const end=L.shape[L.shape.length-1];if(T.li<T.legs.length-1&&(hav(me,end)<0.04||T.frac>0.95)&&g.type!=="bus"){nextLeg();return;}
     if(g.type==="bus"){const nl=T.legs[T.li+1];if(nl&&nl.shape.length&&hav(me,nl.shape[0])<0.05&&T.frac>0.8){nextLeg();return;}}}
-  const now=Date.now();if(changed||now-T.lastDraw>8000){T.lastDraw=now;render();}else if(T.follow&&mapReady&&g.type!=="ride"&&L.shape.length&&projFrac(L.shape,me).d<1)map.easeTo({center:LL(me),duration:500});}
+  const now=Date.now();if(changed||now-T.lastDraw>6000){T.lastDraw=now;render();}else if(g.type==="walk"&&L.shape.length>1&&mapReady){setData("walk",fc(T.legs.filter(l=>l.g.type==="walk"&&l.shape.length>1).map(l=>(l===L&&(ME.acc||999)<160)?lineF(trimFrom(l.shape,me)):lineF(l.shape))));if(T.follow&&projFrac(L.shape,me).d<1)map.easeTo({center:LL(me),duration:500});}}
 
 // ================= BUSCADOR =================
 let choosing="to",searchTimer=null,searchResults=[];
